@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --color-jm-bg: var(--bg);
+  --color-jm-accent: var(--accent);
+  --color-jm-accent-light: var(--accent-light);
+  --color-jm-card: var(--card);
+}
+
+:root {
+  /* Jentle Dark (Default) */
+  --bg: #0b110b;
+  --accent: #86A886;
+  --accent-light: #B4DBB4;
+  --card: rgba(34, 48, 34, 0.7);
+}
+
+.theme-furry {
+  /* Furry Theme (Pink/Purple) */
+  --bg: #1a0b18;
+  --accent: #ff7eb3;
+  --accent-light: #ffb8d1;
+  --card: rgba(48, 20, 40, 0.7);
+}
+
+@layer base {
+  * { outline: none !important; -webkit-tap-highlight-color: transparent; }
+  body { @apply bg-jm-bg text-white overflow-hidden select-none cursor-default transition-colors duration-500; }
+}
