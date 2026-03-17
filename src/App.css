@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* Переносим твои фирменные цвета из старого лаунчера */
+@theme {
+  --color-jm-bg: #0b110b;
+  --color-jm-accent: #86A886;
+  --color-jm-accent-light: #B4DBB4;
+  --color-jm-card: rgba(34, 48, 34, 0.7);
+  --font-strait: 'Strait', sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-jm-bg text-white overflow-hidden select-none cursor-default;
+    font-family: var(--font-strait);
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar { width: 8px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(134, 168, 134, 0.3); border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(134, 168, 134, 0.8); }
