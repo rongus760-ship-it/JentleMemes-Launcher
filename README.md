@@ -2,7 +2,7 @@
 
 Лаунчер для Minecraft на базе **Tauri 2** и **React**. Управление сборками, модами, серверами и аккаунтами в одном приложении с поддержкой кастомных тем, Modrinth и CurseForge.
 
-![version](https://img.shields.io/badge/version-1.0.2--beta-green)
+![version](https://img.shields.io/badge/version-1.0.4--beta-green)
 
 ## Возможности
 
