@@ -11,7 +11,8 @@ use crate::core::modrinth;
 const BASE: &str = "https://api.curseforge.com/v1";
 const MINECRAFT_GAME_ID: u32 = 432;
 /// Встроенный ключ для CurseForge API (как в Prism Launcher), чтобы юзерам не настраивать вручную.
-const BUILTIN_CURSEFORGE_API_KEY: &str = "$2a$10$DnVHLcP.vV9mBN8z5n5LP.IYAaRMf1eSwG0VdWdAJpOljveXl.lgC";
+const BUILTIN_CURSEFORGE_API_KEY: &str = "Your_API_Key";
+/// Не могу палить ключ в код, так как это не безопасно. Он уже будет в бинарнике.
 
 fn api_key() -> Option<String> {
     let key = config::load_settings().ok()?.curseforge_api_key.trim().to_string();
