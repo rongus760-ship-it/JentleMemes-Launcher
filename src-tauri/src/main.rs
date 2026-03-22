@@ -48,6 +48,7 @@ fn main() {
             login_elyby,
             ms_init_device_code,
             ms_login_poll,
+            refresh_microsoft_sessions_startup,
             // modrinth
             search_modrinth,
             get_modrinth_project,
@@ -64,6 +65,7 @@ fn main() {
             list_instance_folders,
             export_instance,
             export_mrpack,
+            export_jentlepack,
             import_instance,
             check_modpack_update,
             update_modpack,

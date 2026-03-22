@@ -1,8 +1,0 @@
-/home/rongus/jentlememes-launcher/installer/src-tauri/target/release/deps/block_buffer-fc8ca35afa183519.d: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block-buffer-0.10.4/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block-buffer-0.10.4/src/sealed.rs
-
-/home/rongus/jentlememes-launcher/installer/src-tauri/target/release/deps/libblock_buffer-fc8ca35afa183519.rlib: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block-buffer-0.10.4/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block-buffer-0.10.4/src/sealed.rs
-
-/home/rongus/jentlememes-launcher/installer/src-tauri/target/release/deps/libblock_buffer-fc8ca35afa183519.rmeta: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block-buffer-0.10.4/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block-buffer-0.10.4/src/sealed.rs
-
-/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block-buffer-0.10.4/src/lib.rs:
-/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block-buffer-0.10.4/src/sealed.rs:

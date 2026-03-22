@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
+import { instanceIconSrc } from "../utils/instanceIcon";
 import { Server, Layers, Activity, Users, ArrowRight, Plus, Play, X, Globe, Newspaper } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AnimatedSection, AnimatedGrid, AnimatedCard, SectionTitle } from "../components/AnimatedSection";
@@ -181,18 +182,21 @@ export default function HomeTab({ setActiveTab, openInstance, onLaunchWithServer
             <button onClick={() => setActiveTab("library")} className="text-sm text-jm-accent hover:text-jm-accent-light flex items-center gap-1 transition-colors">Все сборки <ArrowRight size={16} /></button>
           </div>
           <AnimatedGrid className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" delay={0.3}>
-            {myInstances.map((inst) => (
+            {myInstances.map((inst) => {
+              const homeIcon = instanceIconSrc(inst.icon);
+              return (
               <AnimatedCard key={inst.id} onClick={() => openInstance ? openInstance(inst.id) : setActiveTab("library")} className="bg-jm-card border border-white/10 rounded-xl p-3 flex items-center gap-3 cursor-pointer group">
-                {inst.icon ? (
-                  <img src={convertFileSrc(inst.icon)} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/10" onError={e => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} />
+                {homeIcon ? (
+                  <img src={homeIcon} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/10 shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} />
                 ) : null}
-                <div className={`w-10 h-10 rounded-lg bg-black/50 border border-white/20 flex items-center justify-center text-sm font-medium text-white/70 shrink-0 ${inst.icon ? "hidden" : ""}`}>{inst.name?.charAt(0)?.toUpperCase() || "?"}</div>
+                <div className={`w-10 h-10 rounded-lg bg-black/50 border border-white/20 flex items-center justify-center text-sm font-medium text-white/70 shrink-0 ${homeIcon ? "hidden" : ""}`}>{inst.name?.charAt(0)?.toUpperCase() || "?"}</div>
                 <div className="min-w-0">
                   <h3 className="font-bold text-white text-sm truncate group-hover:text-jm-accent-light transition-colors">{inst.name}</h3>
                   <div className="flex gap-2 mt-0.5"><span className="text-xs text-[var(--text-secondary)] capitalize">{inst.loader}</span><span className="text-xs text-[var(--text-secondary)]">{inst.game_version}</span></div>
                 </div>
               </AnimatedCard>
-            ))}
+            );
+            })}
           </AnimatedGrid>
         </AnimatedSection>
       )}
@@ -311,19 +315,22 @@ export default function HomeTab({ setActiveTab, openInstance, onLaunchWithServer
               </div>
               <p className="text-sm text-[var(--text-secondary)] mb-4">Выберите сборку для входа:</p>
               <div className="flex flex-col gap-2 max-h-64 overflow-y-auto custom-scrollbar">
-                {serverMenuInstances.map((inst) => (
+                {serverMenuInstances.map((inst) => {
+                  const srvIcon = instanceIconSrc(inst.icon);
+                  return (
                   <button key={inst.id} onClick={() => { onLaunchWithServer(inst.id, serverMenu.ip); setServerMenu(null); setActiveTab("library"); }} className="flex items-center gap-4 p-3 rounded-xl bg-black/30 border border-white/5 hover:border-jm-accent/50 hover:bg-jm-accent/10 transition-all text-left group">
-                    {inst.icon ? (
-                      <img src={convertFileSrc(inst.icon)} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} />
+                    {srvIcon ? (
+                      <img src={srvIcon} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} />
                     ) : null}
-                    <div className={`w-10 h-10 rounded-lg bg-black/50 border border-white/20 flex items-center justify-center text-sm font-medium text-white/70 shrink-0 ${inst.icon ? "hidden" : ""}`}>{inst.name?.charAt(0)?.toUpperCase() || "?"}</div>
+                    <div className={`w-10 h-10 rounded-lg bg-black/50 border border-white/20 flex items-center justify-center text-sm font-medium text-white/70 shrink-0 ${srvIcon ? "hidden" : ""}`}>{inst.name?.charAt(0)?.toUpperCase() || "?"}</div>
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-white truncate">{inst.name}</div>
                       <div className="text-xs text-[var(--text-secondary)] capitalize">{inst.loader} {inst.game_version}</div>
                     </div>
                     <Play size={18} className="text-jm-accent opacity-0 group-hover:opacity-100 shrink-0" />
                   </button>
-                ))}
+                );
+                })}
                 {serverMenuInstances.length === 0 && <div className="text-[var(--text-secondary)] text-center py-6">Нет сборок. Создайте сборку во вкладке «Сборки».</div>}
               </div>
             </motion.div>

@@ -5,6 +5,8 @@ use crate::core::types::VersionInfo;
 use crate::core::utils::maven::maven_to_path;
 use std::collections::HashMap;
 use std::process::{Child, Command, Stdio};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::io::{BufRead, BufReader};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -308,19 +310,61 @@ pub async fn launch(
     log("Запуск Java процесса...");
     log(&format!("Команда: {} {}", java_path, args.join(" "))); // для отладки
 
-    let use_discrete_gpu = {
-        let inst_path = data_dir.join("instances").join(instance_id).join("instance.json");
-        if inst_path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&inst_path) {
-                if let Ok(conf) = serde_json::from_str::<crate::config::InstanceConfig>(&content) {
-                    conf.settings.as_ref().map(|s| s.use_discrete_gpu).unwrap_or(false)
-                } else { false }
-            } else { false }
-        } else { false }
+    let inst_json_path = data_dir.join("instances").join(instance_id).join("instance.json");
+    let (
+        inst_display_name,
+        inst_game_version,
+        inst_loader,
+        inst_loader_version,
+        use_discrete_gpu,
+    ) = if inst_json_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&inst_json_path) {
+            if let Ok(conf) = serde_json::from_str::<crate::config::InstanceConfig>(&content) {
+                let gpu = conf
+                    .settings
+                    .as_ref()
+                    .map(|s| s.use_discrete_gpu)
+                    .unwrap_or(false);
+                (
+                    conf.name,
+                    conf.game_version,
+                    conf.loader,
+                    conf.loader_version,
+                    gpu,
+                )
+            } else {
+                (
+                    instance_id.to_string(),
+                    version_id.to_string(),
+                    String::new(),
+                    String::new(),
+                    false,
+                )
+            }
+        } else {
+            (
+                instance_id.to_string(),
+                version_id.to_string(),
+                String::new(),
+                String::new(),
+                false,
+            )
+        }
+    } else {
+        (
+            instance_id.to_string(),
+            version_id.to_string(),
+            String::new(),
+            String::new(),
+            false,
+        )
     };
 
     let mut cmd = Command::new(&java_path);
     cmd.args(&args).current_dir(&game_dir).stdout(Stdio::piped()).stderr(Stdio::piped());
+    // CREATE_NO_WINDOW (0x08000000): без отдельного консольного окна для Java на Windows
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000u32);
 
     #[cfg(target_os = "linux")]
     if use_discrete_gpu {
@@ -347,7 +391,18 @@ pub async fn launch(
     // Храним процесс для возможности остановки
     let child_handle: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(Some(child)));
     RUNNING.lock().unwrap().insert(instance_id.to_string(), child_handle.clone());
-    
+
+    let session_start = std::time::Instant::now();
+    if settings.discord_rich_presence {
+        crate::core::discord_presence::set_playing_minecraft(
+            &inst_display_name,
+            &inst_game_version,
+            &inst_loader,
+            &inst_loader_version,
+            server_ip,
+        );
+    }
+
     let app_handle = app.clone();
     let inst_id = instance_id.to_string();
     thread::spawn(move || {
@@ -382,6 +437,9 @@ pub async fn launch(
                 }
             };
             if done {
+                let secs = session_start.elapsed().as_secs();
+                let _ = crate::core::instance::add_playtime(&inst_id3, secs);
+                crate::core::discord_presence::clear();
                 let _ = RUNNING.lock().unwrap().remove(&inst_id3);
                 let _ = app_handle3.emit("exit_", &inst_id3);
                 let _ = app_handle3.emit(&format!("exit_{}", inst_id3), ());
@@ -405,5 +463,6 @@ pub fn stop_instance(instance_id: &str) -> Result<()> {
         drop(guard);
         running.remove(instance_id);
     }
+    crate::core::discord_presence::clear();
     Ok(())
 }

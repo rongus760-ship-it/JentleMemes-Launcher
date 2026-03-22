@@ -257,7 +257,7 @@ pub fn save_install_path(install_path: &Path) -> Result<(), String> {
     let meta_path = meta_dir.join("install_info.json");
     let info = serde_json::json!({
         "install_path": install_path.to_string_lossy(),
-        "version": "1.0.4",
+        "version": "1.0.5-beta.1",
     });
     fs::write(&meta_path, serde_json::to_string_pretty(&info).unwrap())
         .map_err(|e| e.to_string())?;

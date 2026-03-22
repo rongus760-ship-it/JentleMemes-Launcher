@@ -16,6 +16,7 @@ import Titlebar from "./Titlebar";
 export const showToast = (msg: string) => window.dispatchEvent(new CustomEvent("jm_toast", { detail: msg }));
 
 import { clearInlineThemeColors, applyThemeColors, generatePaletteFromAccent, extractColorsFromImage, loadCustomThemes } from "./themes";
+import { LAUNCHER_VERSION } from "./version";
 
 export const applyTheme = async (theme: string, bg: string) => {
   const root = document.documentElement;
@@ -103,10 +104,12 @@ function App() {
       setBgPath(s.background || "");
       await applyTheme(t, s.background || "");
     } catch(e){}
-    try {
-      const upd: any = await invoke("check_launcher_update");
-      if (upd?.available) setUpdateInfo(upd);
-    } catch(e){}
+    // Проверка обновлений в фоне — не блокирует первый кадр и загрузку настроек
+    void invoke("check_launcher_update")
+      .then((upd: any) => {
+        if (upd?.available) setUpdateInfo(upd);
+      })
+      .catch(() => {});
   }
 
   async function loadActiveAccount() {
@@ -126,13 +129,22 @@ function App() {
   }
 
   useEffect(() => {
-    loadSettings();
-    loadActiveAccount();
+    void (async () => {
+      await loadSettings();
+      try {
+        await invoke("refresh_microsoft_sessions_startup");
+      } catch {
+        /* сеть / устаревший refresh — не блокируем запуск */
+      }
+      await loadActiveAccount();
+    })();
     setTimeout(() => setReady(true), 100);
     const unlistenProf = listen("profiles_updated", () => loadActiveAccount());
     const unlistenSettings = listen("settings_updated", () => loadSettings());
     const unlistenProg = listen<any>("download_progress", (e) => {
       const p = e.payload;
+      // Фоновая мета (silent) — не трогаем прогресс и busy, чтобы не мешать запуску
+      if (p.silent) return;
       setProgress(p);
       if (p.instance_id) setBusyInstanceId(p.instance_id);
       if (p.total > 0 && p.downloaded >= p.total) setTimeout(() => setBusyInstanceId(null), 500);
@@ -184,9 +196,10 @@ function App() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.2, duration: 0.4 }}
-          className="text-lg md:text-xl font-bold text-jm-accent-light tracking-wide shrink-0 hidden sm:block"
+          className="text-lg md:text-xl font-bold text-jm-accent-light tracking-wide shrink-0 hidden sm:flex items-baseline gap-1.5"
         >
           JentleMemes
+          <span className="text-[9px] font-mono text-[var(--text-secondary)] opacity-60">{LAUNCHER_VERSION}</span>
         </motion.div>
 
         {/* Animated navigation */}

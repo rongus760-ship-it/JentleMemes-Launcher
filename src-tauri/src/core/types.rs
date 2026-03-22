@@ -1,13 +1,16 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Default)]
 pub struct DownloadProgress {
     pub task_name: String,
     pub downloaded: usize,
     pub total: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_id: Option<String>,
+    /// Не трогать UI busy/прогресс; фоновая мета прерывается при любом несilent прогрессе.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub silent: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

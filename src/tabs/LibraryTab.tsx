@@ -7,6 +7,22 @@ import DiscoverTab from "./DiscoverTab";
 import LoaderIcon from "../components/LoaderIcon";
 import { showToast } from "../App";
 
+import { instanceIconSrc } from "../utils/instanceIcon";
+
+/** Наигранное время в instance.json хранится в секундах */
+function formatPlaytimeSeconds(sec: number): string {
+  const s = Math.max(0, Math.floor(sec || 0));
+  if (s < 60) return `${s} с`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} м`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  if (h < 24) return mm > 0 ? `${h} ч ${mm} м` : `${h} ч`;
+  const d = Math.floor(h / 24);
+  const hh = h % 24;
+  return hh > 0 ? `${d} д ${hh} ч` : `${d} д`;
+}
+
 // ЛОКАЛЬНЫЙ ПРЕДОХРАНИТЕЛЬ
 class SafeBoundary extends React.Component<any, { hasError: boolean, error: any }> {
   constructor(props: any) { super(props); this.state = { hasError: false, error: null }; }
@@ -80,7 +96,7 @@ function ExportModal({ instanceId, instanceName, onClose, showToast }: { instanc
   const doExport = async () => {
     setExporting(true);
     try {
-      const cmd = format === "mrpack" ? "export_mrpack" : "export_instance";
+      const cmd = format === "mrpack" ? "export_mrpack" : format === "jentlepack" ? "export_jentlepack" : "export_instance";
       const res = await invoke(cmd, { id: instanceId, selectedFolders });
       showToast(res as string);
       onClose();
@@ -112,6 +128,11 @@ function ExportModal({ instanceId, instanceName, onClose, showToast }: { instanc
               <button key={f} onClick={() => setFormat(f)} className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-colors border ${format === f ? "bg-jm-accent text-black border-jm-accent" : "bg-white/5 text-[var(--text-secondary)] border-white/10 hover:border-white/30"}`}>{label}</button>
             ))}
           </div>
+          {format === "jentlepack" && (
+            <p className="text-[11px] text-[var(--text-secondary)] mt-2 leading-relaxed">
+              Файл <span className="text-jm-accent font-mono">.jentlepack</span> — ZIP с манифестом <span className="font-mono">jentlepack.json</span>: полная мета модов/ресурспаков/шейдеров, источник сборки, серверы и последний мир (если были в инстансе).
+            </p>
+          )}
         </div>
 
         <div className="mb-4">
@@ -172,7 +193,11 @@ function ImportDropdown({ onImported }: { onImported: () => void }) {
   return (
     <button
       onClick={async () => {
-        try { const res = await invoke("import_instance"); showToast(res as string); onImported(); } catch (e) { showToast(`Ошибка импорта: ${e}`); }
+        try {
+          const res = await invoke("import_instance") as { message: string; instance_id: string };
+          showToast(res.message);
+          onImported();
+        } catch (e) { showToast(`Ошибка импорта: ${e}`); }
       }}
       className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors"
     >
@@ -197,6 +222,8 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
   const[availableLoaderVersions, setAvailableLoaderVersions] = useState<string[]>([]);
   const[isLoadingVersions, setIsLoadingVersions] = useState(false);
   const[isLoadingLoaderVersions, setIsLoadingLoaderVersions] = useState(false);
+  /** В модалке «Новая сборка»: показать снапшоты/pre/rc в списке версий игры */
+  const [includeSnapshotsNewInstance, setIncludeSnapshotsNewInstance] = useState(false);
 
   const[selectedInstance, setSelectedInstance] = useState<any>(null);
   const[instanceTab, setInstanceTab] = useState("content"); 
@@ -336,11 +363,11 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
   useEffect(() => {
     if (!isCreating) return;
     setIsLoadingVersions(true);
-    invoke("get_loader_versions", { loader: newLoader }).then((vers: any) => {
+    invoke("get_loader_versions", { loader: newLoader, includeSnapshots: includeSnapshotsNewInstance }).then((vers: any) => {
       setAvailableVersions(vers ||[]); 
       if (vers && vers.length > 0 && !vers.includes(newVersion)) setNewVersion(vers[0]);
     }).catch(() => { setAvailableVersions(["1.20.1"]); setNewVersion("1.20.1"); }).finally(() => setIsLoadingVersions(false));
-  },[newLoader, isCreating]);
+  },[newLoader, isCreating, includeSnapshotsNewInstance]);
 
   useEffect(() => {
     if (!isCreating || !newVersion || newLoader === "vanilla") return;
@@ -361,7 +388,15 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
       setContentByFolder(prev => ({ ...prev, [folder]: [] }));
     }
   }
-  const loadMods = () => loadContent("mods");
+  /** Перезагрузить список для активной вкладки (моды / ресурспаки / шейдеры) */
+  const reloadActiveContentTab = () => {
+    loadContent(contentTab as "mods" | "resourcepacks" | "shaderpacks");
+  };
+  const reloadAllInstanceContent = () => {
+    loadContent("mods");
+    loadContent("resourcepacks");
+    loadContent("shaderpacks");
+  };
 
   useEffect(() => {
     if (settingsSubTab === "core" && selectedInstance) {
@@ -388,6 +423,17 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
       if (id) {
         setRunningInstances(prev => prev.filter(x => x !== id));
         showToast("Игра закрыта");
+        invoke("get_instances")
+          .then((insts: unknown) => {
+            const list = (insts as any[]) || [];
+            setInstances(list);
+            setSelectedInstance((prev: any) => {
+              if (!prev) return prev;
+              const u = list.find((i: any) => i.id === prev.id);
+              return u ?? prev;
+            });
+          })
+          .catch(() => {});
       }
     });
     return () => { unlistenExit.then(f=>f()); };
@@ -485,7 +531,7 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
       await invoke("update_modpack", { instanceId: selectedInstance.id, updateUrl: packUpdateInfo.update_url });
       showToast("Сборка обновлена!");
       setPackUpdateInfo(null);
-      loadMods();
+      reloadAllInstanceContent();
       loadData();
     } catch (e) {
       showToast(`Ошибка обновления: ${e}`);
@@ -567,14 +613,14 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
 
   async function toggleMod(filename: string, enable: boolean) {
     await invoke("toggle_mod", { instanceId: selectedInstance.id, filename, enable, folder: contentTab });
-    loadMods();
+    reloadActiveContentTab();
   }
 
   async function deleteMod(filename: string) {
     try {
       await invoke("delete_mod", { instanceId: selectedInstance.id, filename, folder: contentTab });
       setConfirmDeleteMod(null);
-      loadMods();
+      reloadActiveContentTab();
     } catch (e) { showToast(`Ошибка: ${e}`); }
   }
 
@@ -614,7 +660,7 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
         loader: selectedInstance.loader
       });
       showToast("Мод обновлен!");
-      loadMods();
+      reloadActiveContentTab();
       const newUpdates = {...updates}; delete newUpdates[oldHash]; setUpdates(newUpdates);
     } catch (e) { showToast("Ошибка обновления"); }
   }
@@ -653,7 +699,17 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
               <ArrowLeft size={18} />
             </button>
             <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-black/50 flex items-center justify-center border border-white/20">
-              {(() => { const iconSrc = selectedInstance.icon || packSourceInfo?.icon_url; return iconSrc ? <><img src={iconSrc.startsWith("http") ? iconSrc : convertFileSrc(iconSrc)} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} /><span className="hidden w-full h-full flex items-center justify-center text-sm font-semibold text-white/70">{selectedInstance.name?.charAt(0)?.toUpperCase() || "?"}</span></> : <span className="w-full h-full flex items-center justify-center text-sm font-semibold text-white/70">{selectedInstance.name?.charAt(0)?.toUpperCase() || "?"}</span>; })()}
+              {(() => {
+                const iconUrl = instanceIconSrc(selectedInstance.icon || packSourceInfo?.icon_url);
+                return iconUrl ? (
+                  <>
+                    <img src={iconUrl} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} />
+                    <span className="hidden w-full h-full flex items-center justify-center text-sm font-semibold text-white/70">{selectedInstance.name?.charAt(0)?.toUpperCase() || "?"}</span>
+                  </>
+                ) : (
+                  <span className="w-full h-full flex items-center justify-center text-sm font-semibold text-white/70">{selectedInstance.name?.charAt(0)?.toUpperCase() || "?"}</span>
+                );
+              })()}
             </div>
             <div className="min-w-0">
               <h2 className="text-lg md:text-xl font-bold text-white truncate">{selectedInstance.name}</h2>
@@ -738,7 +794,7 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
                         <RefreshCw size={14} className={isCheckingUpdates ? "animate-spin" : ""} /> Обновления
                       </button>
                     )}
-                    <button onClick={async () => { showToast("Загрузка метаданных..."); try { await invoke("refresh_mod_metadata", { instanceId: selectedInstance.id }); loadMods(); showToast("Метаданные обновлены!"); } catch (e) { showToast(`Ошибка: ${e}`); } }} className="bg-white/5 hover:bg-white/10 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border border-white/5" title="Обновить иконки и названия">
+                    <button onClick={async () => { showToast("Загрузка метаданных..."); try { await invoke("refresh_mod_metadata", { instanceId: selectedInstance.id }); reloadAllInstanceContent(); showToast("Метаданные обновлены!"); } catch (e) { showToast(`Ошибка: ${e}`); } }} className="bg-white/5 hover:bg-white/10 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border border-white/5" title="Обновить иконки и названия">
                       <RefreshCw size={14} /> Мета
                     </button>
                   </div>
@@ -986,15 +1042,15 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
             <AnimatePresence>
               {showModBrowser && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex">
-                  <div className="hidden sm:block sm:w-[5%] md:w-[10%] lg:w-[20%] bg-black/60 backdrop-blur-sm shrink-0" onClick={() => { setShowModBrowser(false); setOpenModProjectId(undefined); loadMods(); }} />
+                  <div className="hidden sm:block sm:w-[5%] md:w-[10%] lg:w-[20%] bg-black/60 backdrop-blur-sm shrink-0" onClick={() => { setShowModBrowser(false); setOpenModProjectId(undefined); reloadAllInstanceContent(); }} />
                   <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 30, stiffness: 300 }} className="w-full sm:w-[95%] md:w-[90%] lg:w-[80%] h-full bg-jm-bg border-l border-white/10 shadow-2xl flex flex-col">
                     <div className="flex justify-between items-center p-3 bg-jm-card border-b border-white/10 shrink-0">
                       <h3 className="font-bold text-white text-sm md:text-base truncate">Добавление в {selectedInstance.name}</h3>
-                      <button onClick={() => { setShowModBrowser(false); setOpenModProjectId(undefined); loadMods(); }} className="text-[var(--text-secondary)] hover:text-white p-2 bg-black/50 rounded-xl transition-colors"><X size={20}/></button>
+                      <button onClick={() => { setShowModBrowser(false); setOpenModProjectId(undefined); reloadAllInstanceContent(); }} className="text-[var(--text-secondary)] hover:text-white p-2 bg-black/50 rounded-xl transition-colors"><X size={20}/></button>
                     </div>
                     <div className="flex-grow overflow-hidden relative">
                       <SafeBoundary>
-                        <DiscoverTab contextInstance={selectedInstance} installedMods={(contentByFolder.mods || []).map((m: any) => (m?.clean_name || "").replace(/\.(jar|zip)$/i, ""))} onModsChanged={loadMods} initialProjectId={openModProjectId} />
+                        <DiscoverTab contextInstance={selectedInstance} installedMods={(contentByFolder.mods || []).map((m: any) => (m?.clean_name || "").replace(/\.(jar|zip)$/i, ""))} onModsChanged={reloadAllInstanceContent} initialProjectId={openModProjectId} />
                       </SafeBoundary>
                     </div>
                   </motion.div>
@@ -1027,7 +1083,7 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
             <CustomSelect label="" value={globalFilter} onChange={setGlobalFilter} options={[{ value: "all", label: "Все" }, { value: "vanilla", label: "Vanilla" }, { value: "fabric", label: "Fabric" }, { value: "forge", label: "Forge" }, { value: "neoforge", label: "NeoForge" }, { value: "quilt", label: "Quilt" }]} />
           </div>
           <ImportDropdown onImported={loadData} />
-          <button onClick={() => setIsCreating(true)} className="bg-jm-accent hover:bg-jm-accent-light text-black px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors"><Plus size={14}/> Создать</button>
+          <button onClick={() => { setIncludeSnapshotsNewInstance(false); setIsCreating(true); }} className="bg-jm-accent hover:bg-jm-accent-light text-black px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors"><Plus size={14}/> Создать</button>
         </div>
       </div>
 
@@ -1035,13 +1091,29 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
         {displayedInstances.map((inst, idx) => {
           const isRunning = runningInstances.includes(inst.id);
           return (
-            <motion.div key={inst.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05, duration: 0.3 }} whileHover={{ y: -3, boxShadow: "0 10px 30px rgba(134,168,134,0.15)" }} onClick={() => setSelectedInstance(inst)} className="bg-jm-card border border-white/10 rounded-xl p-3 flex flex-col hover:border-jm-accent transition-all cursor-pointer group relative overflow-hidden">
+            <motion.div key={inst.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 380, damping: 28, delay: Math.min(idx * 0.04, 0.35) }} whileHover={{ y: -4, scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 20 } }} onClick={() => setSelectedInstance(inst)} className="bg-jm-card border border-white/10 rounded-xl p-3 flex flex-col hover:border-jm-accent/60 transition-all duration-300 cursor-pointer group relative overflow-hidden hover:shadow-[0_14px_40px_rgba(134,168,134,0.12)]">
               <div className="flex items-center gap-3 mb-3 relative z-10">
-                {inst.icon ? (
-                  <img src={convertFileSrc(inst.icon)} alt="" className="w-10 h-10 rounded-lg object-cover shadow-inner border border-white/10" onError={e => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} />
-                ) : null}
-                <div className={`w-10 h-10 rounded-lg bg-black/50 border border-white/20 flex items-center justify-center text-sm font-medium text-white/70 shrink-0 ${inst.icon ? "hidden" : ""}`}>{inst.name?.charAt(0)?.toUpperCase() || "?"}</div>
-                <div className="min-w-0"><h3 className="text-sm font-bold text-white truncate">{inst.name}</h3><div className="flex gap-1.5"><span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-[var(--text-secondary)] capitalize">{inst.loader}</span><span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-[var(--text-secondary)]">{inst.game_version}</span></div></div>
+                {(() => {
+                  const iconUrl = instanceIconSrc(inst.icon);
+                  return (
+                    <>
+                      {iconUrl ? (
+                        <img src={iconUrl} alt="" className="w-10 h-10 rounded-lg object-cover shadow-inner border border-white/10 shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} />
+                      ) : null}
+                      <div className={`w-10 h-10 rounded-lg bg-black/50 border border-white/20 flex items-center justify-center text-sm font-medium text-white/70 shrink-0 ${iconUrl ? "hidden" : ""}`}>{inst.name?.charAt(0)?.toUpperCase() || "?"}</div>
+                    </>
+                  );
+                })()}
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-white truncate">{inst.name}</h3>
+                  <div className="flex gap-1.5 flex-wrap">
+                    <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-[var(--text-secondary)] capitalize">{inst.loader}</span>
+                    <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-[var(--text-secondary)]">{inst.game_version}</span>
+                  </div>
+                  {(inst.playtime ?? 0) > 0 && (
+                    <p className="text-[10px] text-[var(--text-secondary)] mt-1.5">Наиграно: {formatPlaytimeSeconds(inst.playtime)}</p>
+                  )}
+                </div>
               </div>
               <div className="mt-auto flex gap-1.5 relative z-10">
                 <button onClick={(e) => { e.stopPropagation(); launchInstance(inst); }} disabled={isLaunching || isRepairing || busyInstanceId === inst.id} className={`flex-1 font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors border disabled:opacity-50 disabled:cursor-not-allowed ${isRunning ? 'bg-red-500/20 text-red-500 border-red-500/30 hover:bg-red-500 hover:text-white' : 'bg-jm-accent/10 text-jm-accent border-jm-accent/30 hover:bg-jm-accent hover:text-black'}`}>
@@ -1077,6 +1149,10 @@ export default function LibraryTab({ initialInstanceId, initialServerIp, initial
                   <div className="flex-1"><label className="text-sm text-[var(--text-secondary)] mb-1 block">Название</label><input type="text" placeholder="Например: Выживание с модами" value={newName} onChange={e => setNewName(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-jm-accent transition-colors" /></div>
                 </div>
                 <CustomSelect label="Ядро (Загрузчик)" value={newLoader} onChange={setNewLoader} options={[{ value: "vanilla", label: "Vanilla" }, { value: "fabric", label: "Fabric" }, { value: "quilt", label: "Quilt" }, { value: "forge", label: "Forge" }, { value: "neoforge", label: "NeoForge" }]} />
+                <label className="flex items-center gap-3 cursor-pointer p-3 bg-black/25 rounded-xl border border-white/10">
+                  <input type="checkbox" checked={includeSnapshotsNewInstance} onChange={e => setIncludeSnapshotsNewInstance(e.target.checked)} className="w-4 h-4 accent-jm-accent cursor-pointer shrink-0" />
+                  <span className="text-sm text-[var(--text-secondary)]">Показывать снапшоты и предрелизы в списке версий</span>
+                </label>
                 <div className="flex gap-4">
                   <div className="flex-1">
                     {isLoadingVersions ? <div className="h-[72px] flex items-end"><div className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-[var(--text-secondary)] flex items-center gap-2"><Loader2 className="animate-spin" size={16}/> Загрузка...</div></div> : <CustomSelect label="Версия игры" value={newVersion} onChange={setNewVersion} options={availableVersions.map(v => ({ value: v, label: v }))} />}

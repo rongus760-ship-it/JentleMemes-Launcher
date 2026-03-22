@@ -1,34 +1,46 @@
 use serde_json::Value;
 use reqwest::Client;
 use std::fs;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use crate::config::get_data_dir;
+use crate::core::progress_emit::emit_download_progress;
 use crate::core::types::DownloadProgress;
 use crate::error::Result;
 
 pub async fn search(
-    query: &str, project_type: &str, game_version: &str, 
-    loader: &str, categories: Vec<String>, page: usize
-    , sort: &str
+    query: &str,
+    project_type: &str,
+    game_version: &str,
+    loader: &str,
+    categories: Vec<String>,
+    page: usize,
+    sort: &str,
+    sort_desc: bool,
 ) -> Result<Value> {
     let limit = 20;
     let offset = page * limit;
     let mut facets = Vec::new();
     facets.push(vec![format!("project_type:{}", project_type)]);
-    if !game_version.is_empty() { facets.push(vec![format!("versions:{}", game_version)]); }
-    if !loader.is_empty() && (project_type == "mod" || project_type == "modpack") { facets.push(vec![format!("categories:{}", loader)]); }
-    for cat in categories { facets.push(vec![format!("categories:{}", cat)]); }
+    if !game_version.is_empty() {
+        facets.push(vec![format!("versions:{}", game_version)]);
+    }
+    if !loader.is_empty() && (project_type == "mod" || project_type == "modpack") {
+        facets.push(vec![format!("categories:{}", loader)]);
+    }
+    for cat in categories {
+        facets.push(vec![format!("categories:{}", cat)]);
+    }
 
     let client = Client::builder().user_agent("JentleMemesLauncher/1.0").build()?;
-    // Modrinth search: в ряде случаев без `index`/`query` возвращается пусто.
-    // Поэтому всегда задаём `query` (даже если пустая строка) и сортировку через `index`.
+    // Имя/автор: API не сортирует — берём downloads как базу, потом сортируем локально.
     let index = match sort {
         "relevance" => "relevance",
-        "popular" => "downloads",
+        "popularity" | "popular" => "downloads",
         "downloads" => "downloads",
         "updated" => "updated",
-        // fallback
-        _ => "downloads",
+        "rating" => "follows",
+        "name" | "author" => "downloads",
+        _ => "relevance",
     };
 
     let mut req = client
@@ -39,11 +51,57 @@ pub async fn search(
             ("index", index.to_string()),
             ("facets", serde_json::to_string(&facets)?),
         ]);
-    // Важно: endpoint ожидает `query`. При отсутствии/пустом запросе возможен пустой ответ.
     req = req.query(&[("query", query)]);
-    
+
     let res = req.send().await?;
-    Ok(res.json().await?)
+    let mut val: Value = res.json().await?;
+
+    if let Some(hits) = val.get_mut("hits").and_then(|h| h.as_array_mut()) {
+        match sort {
+            "name" => hits.sort_by(|a, b| {
+                let ta = a
+                    .get("title")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                let tb = b
+                    .get("title")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                ta.cmp(&tb)
+            }),
+            "author" => hits.sort_by(|a, b| {
+                let ta = a
+                    .get("author")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                let tb = b
+                    .get("author")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                ta.cmp(&tb)
+            }),
+            _ => {}
+        }
+
+        match sort {
+            "name" | "author" => {
+                if sort_desc {
+                    hits.reverse();
+                }
+            }
+            _ => {
+                if !sort_desc {
+                    hits.reverse();
+                }
+            }
+        }
+    }
+
+    Ok(val)
 }
 
 pub async fn get_project(id: &str) -> Result<Value> {
@@ -67,11 +125,12 @@ pub async fn install_file(app: Option<&AppHandle>, instance_id: &str, url: &str,
         _ => "mods",
     };
     if let Some(handle) = app {
-        let _ = handle.emit("download_progress", DownloadProgress {
+        emit_download_progress(handle, DownloadProgress {
             task_name: format!("Скачивание: {}", filename),
             downloaded: 0,
             total: 1,
             instance_id: Some(instance_id.to_string()),
+            ..Default::default()
         });
     }
     let target_dir = get_data_dir().join("instances").join(instance_id).join(folder);
@@ -80,11 +139,12 @@ pub async fn install_file(app: Option<&AppHandle>, instance_id: &str, url: &str,
     let bytes = reqwest::get(url).await?.bytes().await?;
     fs::write(target_path, bytes)?;
     if let Some(handle) = app {
-        let _ = handle.emit("download_progress", DownloadProgress {
+        emit_download_progress(handle, DownloadProgress {
             task_name: format!("Скачивание: {}", filename),
             downloaded: 1,
             total: 1,
             instance_id: Some(instance_id.to_string()),
+            ..Default::default()
         });
     }
     Ok(format!("Успешно установлено в папку {}", folder))

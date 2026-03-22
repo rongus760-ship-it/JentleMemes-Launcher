@@ -170,21 +170,64 @@ pub async fn load_profiles() -> std::result::Result<serde_json::Value, String> {
 #[tauri::command] pub async fn ms_init_device_code() -> std::result::Result<crate::config::DeviceCodeResponse, String> { crate::core::auth::ms_init_device_code().await.map_err(|e| e.to_string()) }
 #[tauri::command] pub async fn ms_login_poll(device_code: String, interval: u64) -> std::result::Result<crate::config::AccountInfo, String> { crate::core::auth::ms_login_poll(&device_code, interval).await.map_err(|e| e.to_string()) }
 
+/// При старте лаунчера обновляет токены Microsoft-аккаунтов (по refresh_token), чтобы не было «недействительная сессия».
+#[tauri::command]
+pub async fn refresh_microsoft_sessions_startup(app: tauri::AppHandle) -> std::result::Result<(), String> {
+    use tauri::Emitter;
+    let mut profiles = crate::config::load_profiles().map_err(|e| e.to_string())?;
+    let mut changed = false;
+    for acc in profiles.accounts.iter_mut() {
+        if acc.acc_type != "microsoft" {
+            continue;
+        }
+        match crate::core::auth::refresh_microsoft_account_on_startup(acc).await {
+            Ok(new_acc) => {
+                let differs = new_acc.token != acc.token
+                    || new_acc.ms_refresh_token != acc.ms_refresh_token
+                    || new_acc.username != acc.username
+                    || new_acc.uuid != acc.uuid;
+                *acc = new_acc;
+                if differs {
+                    changed = true;
+                }
+            }
+            Err(e) => {
+                eprintln!("[auth] не удалось обновить сессию {}: {}", acc.username, e);
+            }
+        }
+    }
+    if changed {
+        crate::config::save_profiles(&profiles).map_err(|e| e.to_string())?;
+        let _ = app.emit("profiles_updated", ());
+    }
+    Ok(())
+}
+
 // ================= MODRINTH & MRPACK =================
-#[tauri::command] pub async fn search_modrinth(query: String, project_type: String, game_version: String, loader: String, categories: Vec<String>, page: usize, sort: String) -> std::result::Result<Value, String> { crate::core::modrinth::search(&query, &project_type, &game_version, &loader, categories, page, &sort).await.map_err(|e| e.to_string()) }
+#[tauri::command] pub async fn search_modrinth(query: String, project_type: String, game_version: String, loader: String, categories: Vec<String>, page: usize, sort: String, sort_desc: Option<bool>) -> std::result::Result<Value, String> {
+    let desc = sort_desc.unwrap_or(true);
+    crate::core::modrinth::search(&query, &project_type, &game_version, &loader, categories, page, &sort, desc).await.map_err(|e| e.to_string())
+}
 #[tauri::command] pub async fn get_modrinth_project(id: String) -> std::result::Result<Value, String> { crate::core::modrinth::get_project(&id).await.map_err(|e| e.to_string()) }
 #[tauri::command] pub async fn get_modrinth_versions(id: String) -> std::result::Result<Value, String> { crate::core::modrinth::get_versions(&id).await.map_err(|e| e.to_string()) }
-#[tauri::command] pub async fn search_curseforge(query: String, project_type: String, game_version: String, loader: String, categories: Vec<String>, page: usize, sort: String) -> std::result::Result<Value, String> { crate::core::curseforge::search(&query, &project_type, &game_version, &loader, categories, page, &sort).await.map_err(|e| e.to_string()) }
+#[tauri::command] pub async fn search_curseforge(query: String, project_type: String, game_version: String, loader: String, categories: Vec<String>, page: usize, sort: String, sort_desc: Option<bool>) -> std::result::Result<Value, String> {
+    let desc = sort_desc.unwrap_or(true);
+    crate::core::curseforge::search(&query, &project_type, &game_version, &loader, categories, page, &sort, desc).await.map_err(|e| e.to_string())
+}
 #[tauri::command] pub async fn get_curseforge_project(id: String) -> std::result::Result<Value, String> { crate::core::curseforge::get_project(&id).await.map_err(|e| e.to_string()) }
 #[tauri::command] pub async fn get_curseforge_versions(id: String) -> std::result::Result<Value, String> { crate::core::curseforge::get_versions(&id).await.map_err(|e| e.to_string()) }
-#[tauri::command] pub async fn search_hybrid(query: String, project_type: String, game_version: String, loader: String, categories: Vec<String>, page: usize, sort: String) -> std::result::Result<Value, String> { crate::core::curseforge::search_hybrid(&query, &project_type, &game_version, &loader, categories, page, &sort).await.map_err(|e| e.to_string()) }
+#[tauri::command] pub async fn search_hybrid(query: String, project_type: String, game_version: String, loader: String, categories: Vec<String>, page: usize, sort: String, sort_desc: Option<bool>) -> std::result::Result<Value, String> {
+    let desc = sort_desc.unwrap_or(true);
+    crate::core::curseforge::search_hybrid(&query, &project_type, &game_version, &loader, categories, page, &sort, desc).await.map_err(|e| e.to_string())
+}
 #[tauri::command] pub async fn get_hybrid_versions(modrinth_id: Option<String>, curseforge_id: Option<String>) -> std::result::Result<Value, String> { crate::core::curseforge::get_hybrid_versions(modrinth_id, curseforge_id).await.map_err(|e| e.to_string()) }
 #[tauri::command] pub async fn install_modrinth_file(app: AppHandle, instance_id: String, url: String, filename: String, project_type: String) -> std::result::Result<String, String> { crate::core::modrinth::install_file(Some(&app), &instance_id, &url, &filename, &project_type).await.map_err(|e| e.to_string()) }
 #[tauri::command] pub async fn install_mrpack_from_url(app: AppHandle, url: String, name: String) -> std::result::Result<String, String> { crate::core::mrpack::install_from_url(app, &url, &name).await.map_err(|e| e.to_string()) }
 #[tauri::command] pub async fn install_mrpack(app: AppHandle, file_path: String, name: String) -> std::result::Result<String, String> { crate::core::mrpack::install(app, &file_path, &name, None).await.map_err(|e| e.to_string()) }
 #[tauri::command] pub async fn export_instance(id: String, selected_folders: Vec<String>) -> std::result::Result<String, String> { crate::core::mrpack::export(&id, selected_folders).map_err(|e| e.to_string()) }
-#[tauri::command] pub async fn export_mrpack(id: String, selected_folders: Vec<String>) -> std::result::Result<String, String> { crate::core::mrpack::export_mrpack(&id, selected_folders).map_err(|e| e.to_string()) }
-#[tauri::command] pub async fn import_instance() -> std::result::Result<String, String> { crate::core::mrpack::import().map_err(|e| e.to_string()) }
+#[tauri::command] pub async fn export_mrpack(app: tauri::AppHandle, id: String, selected_folders: Vec<String>) -> std::result::Result<String, String> { crate::core::mrpack::export_mrpack_async(&app, &id, selected_folders).await.map_err(|e| e.to_string()) }
+#[tauri::command] pub async fn export_jentlepack(app: tauri::AppHandle, id: String, selected_folders: Vec<String>) -> std::result::Result<String, String> { crate::core::mrpack::export_jentlepack_async(&app, &id, selected_folders).await.map_err(|e| e.to_string()) }
+#[tauri::command] pub async fn import_instance(app: AppHandle) -> std::result::Result<crate::core::mrpack::ImportInstanceResult, String> { crate::core::mrpack::import_instance_packed(&app).await.map_err(|e| e.to_string()) }
 #[tauri::command] pub async fn check_modpack_update(instance_id: String) -> std::result::Result<Value, String> { crate::core::mrpack::check_modpack_update(&instance_id).await.map_err(|e| e.to_string()) }
 #[tauri::command] pub async fn update_modpack(app: AppHandle, instance_id: String, update_url: String) -> std::result::Result<String, String> { crate::core::mrpack::update_modpack(app, &instance_id, &update_url).await.map_err(|e| e.to_string()) }
 
@@ -600,7 +643,7 @@ pub async fn download_and_apply_update() -> std::result::Result<String, String> 
 
 #[tauri::command] pub fn get_system_ram() -> u64 { crate::core::utils::system::get_system_ram() }
 #[tauri::command] pub async fn ping_server(ip: String) -> std::result::Result<Value, String> { crate::core::utils::system::ping_server(&ip).await.map_err(|e| e.to_string()) }
-#[tauri::command] pub async fn get_loader_versions(loader: String) -> std::result::Result<Vec<String>, String> { crate::core::utils::system::get_loader_versions(&loader).await.map_err(|e| e.to_string()) }
+#[tauri::command] pub async fn get_loader_versions(loader: String, include_snapshots: Option<bool>) -> std::result::Result<Vec<String>, String> { crate::core::utils::system::get_loader_versions(&loader, include_snapshots).await.map_err(|e| e.to_string()) }
 #[tauri::command] pub async fn get_specific_loader_versions(loader: String, game_version: String) -> std::result::Result<Vec<String>, String> { crate::core::utils::system::get_specific_loader_versions(&loader, &game_version).await.map_err(|e| e.to_string()) }
 
 // ================= УПРАВЛЕНИЕ ОКНОМ =================

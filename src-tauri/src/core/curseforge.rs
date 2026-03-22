@@ -3,6 +3,7 @@
 //! Ответы приводятся к формату Modrinth для совместимости с фронтом.
 
 use serde_json::{json, Value};
+use serde::Serialize;
 use std::collections::HashMap;
 use crate::config;
 use crate::error::Result;
@@ -11,12 +12,28 @@ use crate::core::modrinth;
 const BASE: &str = "https://api.curseforge.com/v1";
 const MINECRAFT_GAME_ID: u32 = 432;
 /// Встроенный ключ для CurseForge API (как в Prism Launcher), чтобы юзерам не настраивать вручную.
-const BUILTIN_CURSEFORGE_API_KEY: &str = "Your_API_Key";
-/// Не могу палить ключ в код, так как это не безопасно. Он уже будет в бинарнике.
+const BUILTIN_CURSEFORGE_API_KEY: &str = "$2a$10$DnVHLcP.vV9mBN8z5n5LP.IYAaRMf1eSwG0VdWdAJpOljveXl.lgC";
 
-fn api_key() -> Option<String> {
-    let key = config::load_settings().ok()?.curseforge_api_key.trim().to_string();
-    if key.is_empty() { Some(BUILTIN_CURSEFORGE_API_KEY.to_string()) } else { Some(key) }
+/// (основной ключ, запасной встроенный если в настройках указан свой).
+/// Запасной нужен: неверный/просроченный ключ в `settings.json` на одном ПК даёт 403, на другом поле пустое — работает встроенный.
+fn curseforge_api_keys() -> Option<(String, Option<String>)> {
+    let settings = config::load_settings().ok()?;
+    let user = settings.curseforge_api_key.trim().to_string();
+    if user.is_empty() {
+        Some((BUILTIN_CURSEFORGE_API_KEY.to_string(), None))
+    } else {
+        Some((user, Some(BUILTIN_CURSEFORGE_API_KEY.to_string())))
+    }
+}
+
+fn cf_http_client() -> Result<reqwest::Client> {
+    Ok(reqwest::Client::builder()
+        .user_agent("JentleMemesLauncher/1.0")
+        .build()?)
+}
+
+fn cf_needs_key_retry(status: u16) -> bool {
+    matches!(status, 401 | 403)
 }
 
 /// ModLoaderType: 0=None, 1=Forge, 2=Cauldron, 3=LiteLoader, 4=Fabric, 5=Quilt
@@ -30,43 +47,33 @@ fn mod_loader_type(loader: &str) -> Option<u32> {
     }
 }
 
-/// Search CurseForge. Returns Modrinth-like { hits: [...], total_hits: N }.
-pub async fn search(
+fn mods_search_request(
+    client: &reqwest::Client,
+    api_key: &str,
     query: &str,
     project_type: &str,
     game_version: &str,
     loader: &str,
-    _categories: Vec<String>,
     page: usize,
     sort: &str,
-) -> Result<Value> {
-    let key = match api_key() {
-        Some(k) => k,
-        None => return Ok(json!({ "hits": [], "total_hits": 0, "error": "curseforge_no_api_key" })),
-    };
-
+    sort_desc: bool,
+) -> reqwest::RequestBuilder {
     let page_size = 20u32;
     let index = (page as u32) * page_size;
     let class_id: u32 = match project_type {
         "modpack" => 4471,
         "resourcepack" => 12,
         "shader" => 6552,
-        _ => 6, // mod, datapack, etc. (datapack: CF has no dedicated class; approximate)
+        _ => 6,
     };
-
-    let client = reqwest::Client::builder()
-        .user_agent("JentleMemesLauncher/1.0")
-        .build()?;
     let mut req = client
         .get(format!("{}/mods/search", BASE))
-        .header("x-api-key", &key)
+        .header("x-api-key", api_key)
         .header("Accept", "application/json")
         .query(&[("gameId", MINECRAFT_GAME_ID), ("classId", class_id), ("index", index), ("pageSize", page_size)]);
     if !query.is_empty() {
         req = req.query(&[("searchFilter", query)]);
     }
-    // В документации модлоадер должен быть "coupled" с gameVersion.
-    // Поэтому если версия "Любая" (пустая строка) — не передаём ни gameVersion, ни modLoaderType.
     if !game_version.is_empty() {
         req = req.query(&[("gameVersion", game_version)]);
         if project_type == "mod" || project_type == "modpack" {
@@ -75,9 +82,6 @@ pub async fn search(
             }
         }
     }
-
-    // Сортировка (Relevance/Popularity/etc).
-    // ModsSearchSortField enum: Featured=1, Popularity=2, LastUpdated=3, Name=4, Author=5, TotalDownloads=6, Rating=12.
     let sort_field: u32 = match sort {
         "relevance" | "featured" => 1,
         "popularity" => 2,
@@ -88,11 +92,62 @@ pub async fn search(
         "rating" => 12,
         _ => 1,
     };
-    req = req.query(&[
+    let order = if sort_desc { "desc" } else { "asc" };
+    req.query(&[
         ("sortField", sort_field.to_string()),
-        ("sortOrder", "desc".to_string()),
-    ]);
-    let res = req.send().await?;
+        ("sortOrder", order.to_string()),
+    ])
+}
+
+/// Search CurseForge. Returns Modrinth-like { hits: [...], total_hits: N }.
+pub async fn search(
+    query: &str,
+    project_type: &str,
+    game_version: &str,
+    loader: &str,
+    _categories: Vec<String>,
+    page: usize,
+    sort: &str,
+    sort_desc: bool,
+) -> Result<Value> {
+    let (primary, fallback) = match curseforge_api_keys() {
+        Some(k) => k,
+        None => return Ok(json!({ "hits": [], "total_hits": 0, "error": "curseforge_no_api_key" })),
+    };
+
+    let client = cf_http_client()?;
+    let mut res = mods_search_request(
+        &client,
+        &primary,
+        query,
+        project_type,
+        game_version,
+        loader,
+        page,
+        sort,
+        sort_desc,
+    )
+    .send()
+    .await?;
+    if cf_needs_key_retry(res.status().as_u16()) {
+        if let Some(ref fb) = fallback {
+            if fb != &primary {
+                res = mods_search_request(
+                    &client,
+                    fb,
+                    query,
+                    project_type,
+                    game_version,
+                    loader,
+                    page,
+                    sort,
+                    sort_desc,
+                )
+                .send()
+                .await?;
+            }
+        }
+    }
 
     let status = res.status();
     if status.as_u16() == 403 {
@@ -143,7 +198,7 @@ pub async fn search(
 
 /// Get CurseForge mod by id. Returns Modrinth-like: title, body, icon_url, project_type.
 pub async fn get_project(id: &str) -> Result<Value> {
-    let key = match api_key() {
+    let (primary, fallback) = match curseforge_api_keys() {
         Some(k) => k,
         None => return Ok(Value::Null),
     };
@@ -153,15 +208,28 @@ pub async fn get_project(id: &str) -> Result<Value> {
         Err(_) => return Ok(Value::Null),
     };
 
-    let client = reqwest::Client::builder()
-        .user_agent("JentleMemesLauncher/1.0")
-        .build()?;
-    let res = client
-        .get(format!("{}/mods/{}", BASE, id))
+    let client = cf_http_client()?;
+    let mod_url = format!("{}/mods/{}", BASE, id);
+    let mut key = primary.clone();
+    let mut res = client
+        .get(&mod_url)
         .header("x-api-key", &key)
         .header("Accept", "application/json")
         .send()
         .await?;
+    if cf_needs_key_retry(res.status().as_u16()) {
+        if let Some(ref fb) = fallback {
+            if fb != &primary {
+                key = fb.clone();
+                res = client
+                    .get(&mod_url)
+                    .header("x-api-key", &key)
+                    .header("Accept", "application/json")
+                    .send()
+                    .await?;
+            }
+        }
+    }
 
     if !res.status().is_success() {
         return Ok(Value::Null);
@@ -205,8 +273,9 @@ pub async fn get_project(id: &str) -> Result<Value> {
         .to_string();
 
     // Full HTML description (if available)
+    let desc_url = format!("{}/mods/{}/description", BASE, id);
     let desc_res = client
-        .get(format!("{}/mods/{}/description", BASE, id))
+        .get(&desc_url)
         .header("x-api-key", &key)
         .header("Accept", "application/json")
         .send()
@@ -234,7 +303,7 @@ pub async fn get_project(id: &str) -> Result<Value> {
 
 /// Get CurseForge mod files. Returns array like Modrinth versions: id, name, game_versions, loaders, files: [{ url, filename, primary }].
 pub async fn get_versions(id: &str) -> Result<Value> {
-    let key = match api_key() {
+    let (primary, fallback) = match curseforge_api_keys() {
         Some(k) => k,
         None => return Ok(json!([])),
     };
@@ -244,15 +313,26 @@ pub async fn get_versions(id: &str) -> Result<Value> {
         Err(_) => return Ok(json!([])),
     };
 
-    let client = reqwest::Client::builder()
-        .user_agent("JentleMemesLauncher/1.0")
-        .build()?;
-    let res = client
-        .get(format!("{}/mods/{}/files", BASE, id))
-        .header("x-api-key", &key)
+    let client = cf_http_client()?;
+    let files_url = format!("{}/mods/{}/files", BASE, id);
+    let mut res = client
+        .get(&files_url)
+        .header("x-api-key", &primary)
         .header("Accept", "application/json")
         .send()
         .await?;
+    if cf_needs_key_retry(res.status().as_u16()) {
+        if let Some(ref fb) = fallback {
+            if fb != &primary {
+                res = client
+                    .get(&files_url)
+                    .header("x-api-key", fb)
+                    .header("Accept", "application/json")
+                    .send()
+                    .await?;
+            }
+        }
+    }
 
     if !res.status().is_success() {
         return Ok(json!([]));
@@ -331,10 +411,29 @@ pub async fn search_hybrid(
     categories: Vec<String>,
     page: usize,
     sort: &str,
+    sort_desc: bool,
 ) -> Result<Value> {
     let (mr, cf) = tokio::join!(
-        modrinth::search(query, project_type, game_version, loader, categories.clone(), page, sort),
-        search(query, project_type, game_version, loader, categories, page, sort),
+        modrinth::search(
+            query,
+            project_type,
+            game_version,
+            loader,
+            categories.clone(),
+            page,
+            sort,
+            sort_desc,
+        ),
+        search(
+            query,
+            project_type,
+            game_version,
+            loader,
+            categories,
+            page,
+            sort,
+            sort_desc,
+        ),
     );
     let mr_json = mr.unwrap_or_else(|_| json!({ "hits": [], "total_hits": 0 }));
     let cf_json = cf.unwrap_or_else(|_| json!({ "hits": [], "total_hits": 0 }));
@@ -410,4 +509,82 @@ pub async fn get_hybrid_versions(modrinth_id: Option<String>, curseforge_id: Opt
         out.push(o);
     }
     Ok(serde_json::to_value(out).unwrap_or(json!([])))
+}
+
+/// Fingerprint CurseForge (murmur2, seed 1, без таб/пробел/LF/CR) — как в furse / Prism.
+pub fn cf_fingerprint_bytes(bytes: &[u8]) -> u64 {
+    let filtered: Vec<u8> = bytes
+        .iter()
+        .filter(|b| !matches!(**b, 9u8 | 10 | 13 | 32))
+        .copied()
+        .collect();
+    murmur2::murmur2(&filtered, 1) as u64
+}
+
+/// HashAlgo: 1 = Sha1 (см. документацию CurseForge API).
+pub fn cf_file_sha1_hex(file: &Value) -> Option<String> {
+    let arr = file.get("hashes")?.as_array()?;
+    for h in arr {
+        let algo = h.get("algo")?.as_u64()?;
+        if algo == 1 {
+            return h.get("value")?.as_str().map(|s| s.to_lowercase());
+        }
+    }
+    None
+}
+
+pub fn cf_file_sha512_hex(file: &Value) -> Option<String> {
+    let arr = file.get("hashes")?.as_array()?;
+    for h in arr {
+        let algo = h.get("algo")?.as_u64()?;
+        // 4 = Sha512 в ряде версий enum Overwolf; если нет — остаётся пусто в индексе
+        if algo == 4 {
+            return h.get("value")?.as_str().map(|s| s.to_lowercase());
+        }
+    }
+    None
+}
+
+#[derive(Serialize, Clone)]
+struct FingerprintRequestBody {
+    fingerprints: Vec<u64>,
+}
+
+/// POST /v1/fingerprints/432
+pub async fn match_fingerprints(fingerprints: Vec<u64>) -> Result<Value> {
+    if fingerprints.is_empty() {
+        return Ok(json!({ "exactMatches": [] }));
+    }
+    let (primary, fallback) = match curseforge_api_keys() {
+        Some(k) => k,
+        None => return Ok(json!({ "exactMatches": [] })),
+    };
+    let client = cf_http_client()?;
+    let fp_url = format!("{}/fingerprints/{}", BASE, MINECRAFT_GAME_ID);
+    let body = FingerprintRequestBody { fingerprints };
+    let mut res = client
+        .post(&fp_url)
+        .header("x-api-key", &primary)
+        .header("Accept", "application/json")
+        .json(&body)
+        .send()
+        .await?;
+    if cf_needs_key_retry(res.status().as_u16()) {
+        if let Some(ref fb) = fallback {
+            if fb != &primary {
+                res = client
+                    .post(&fp_url)
+                    .header("x-api-key", fb)
+                    .header("Accept", "application/json")
+                    .json(&body)
+                    .send()
+                    .await?;
+            }
+        }
+    }
+    if !res.status().is_success() {
+        return Ok(json!({ "exactMatches": [] }));
+    }
+    let full: Value = res.json().await?;
+    Ok(full.get("data").cloned().unwrap_or(json!({})))
 }

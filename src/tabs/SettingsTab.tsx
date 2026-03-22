@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { showToast, applyTheme } from "../App";
 import { builtinThemes, type ThemeDef, type CustomThemeDef, type ThemeColors, generatePaletteFromAccent, applyThemeColors, loadCustomThemes, saveCustomThemes } from "../themes";
 import { AnimatedSection } from "../components/AnimatedSection";
+import { LAUNCHER_VERSION } from "../version";
 
 export default function SettingsTab() {
   const [settings, setSettings] = useState<Record<string, any>>({
@@ -20,6 +21,7 @@ export default function SettingsTab() {
     curseforge_api_key: "",
     theme: "jentle-dark",
     background: "",
+    discord_rich_presence: true,
   });
 
   const [maxRam, setMaxRam] = useState(8192);
@@ -148,9 +150,12 @@ export default function SettingsTab() {
   return (
     <div className="flex flex-col items-center w-full max-w-4xl mx-auto h-full gap-6 pb-10">
       <AnimatedSection delay={0}>
-        <h2 className="text-xl md:text-2xl font-bold text-jm-accent-light mb-1 w-full text-left">
-          Настройки лаунчера
-        </h2>
+        <div className="flex items-center justify-between w-full">
+          <h2 className="text-xl md:text-2xl font-bold text-jm-accent-light mb-1 text-left">
+            Настройки лаунчера
+          </h2>
+          <span className="text-xs text-[var(--text-secondary)] font-mono bg-white/5 px-2.5 py-1 rounded-lg border border-[var(--border)]">{LAUNCHER_VERSION}</span>
+        </div>
       </AnimatedSection>
 
       {/* UPDATE CHECK */}
@@ -443,6 +448,19 @@ export default function SettingsTab() {
               className="w-4 h-4 accent-jm-accent cursor-pointer"
             />
             <span className="text-sm font-bold">Скачивать зависимости автоматически</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-[var(--border)]" style={{ background: "var(--input-bg)" }}>
+            <input
+              type="checkbox"
+              checked={settings.discord_rich_presence ?? true}
+              onChange={(e) => setSettings({ ...settings, discord_rich_presence: e.target.checked })}
+              className="w-4 h-4 accent-jm-accent cursor-pointer"
+            />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-bold">Discord Rich Presence</span>
+              <span className="text-xs text-[var(--text-secondary)]">Статус в Discord на время игры. Нужен Application ID в исходниках (см. README).</span>
+            </div>
           </label>
 
           <div className="pt-4 border-t border-[var(--border)]">

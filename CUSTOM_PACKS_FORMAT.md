@@ -2,6 +2,33 @@
 
 Адрес URL со списком сборок хранится в файле `src-tauri/custom_packs.json`. Его нельзя изменить через интерфейс лаунчера.
 
+---
+
+## JentlePack (`.jentlepack`)
+
+Переносимый архив (ZIP) с расширением **`.jentlepack`**. В корне всегда есть **`jentlepack.json`** — манифест со всей метой, которая была в инстансе на момент экспорта.
+
+| Поле | Описание |
+|------|----------|
+| `formatVersion` | `2` |
+| `kind` | `"jentlepack"` |
+| `exportedAtUnix` | UNIX-время экспорта |
+| `launcherVersion` | версия лаунчера, собравшего пак |
+| `instance` | полный объект как в `instance.json` |
+| `contentMeta` | объекты `mods`, `resourcepacks`, `shaderpacks` — карты `имя_файла → { project_id, version_id, title, icon_url, version_name }` |
+| `packSource` | опционально, как `pack_source.json` (Modrinth / Custom) |
+| `servers` | опционально, как `servers.json` |
+| `lastWorld` | опционально, как `last_world.json` |
+| `selectedFolders` | какие папки были отмечены при экспорте (справочно) |
+
+В архиве также есть **`modrinth.index.json`** (как у .mrpack): моды/ресурспаки/шейдеры с Modrinth и (для экспорта из лаунчера) с CurseForge попадают в **`files[]` с URL**, а не в `overrides`; в **`overrides/`** только конфиги, миры, кастомные jar и т.п.
+
+Остальное в `overrides/` — выбранные при экспорте папки (`config`, `saves`, …) плюс `instance.json` и служебные файлы.
+
+**Импорт:** сначала скачивание по индексу, затем **JentlePack** — сверка меты с Modrinth (если хеш узнан — обновить запись; иначе оставить из `contentMeta`). Для обычного ZIP/mrpack без `jentlepack.json` кэш меты сбрасывается и строится заново через API.
+
+---
+
 ## Конфигурация лаунчера
 
 Файл `src-tauri/custom_packs.json`:

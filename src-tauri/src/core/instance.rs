@@ -4,23 +4,39 @@ use tokio::time::sleep;
 use crate::config::{InstanceConfig, InstanceSettings, get_data_dir};
 use crate::error::{Result, Error};
 
+/// Абсолютный путь для Tauri convertFileSrc (без сиротских symlink при ошибке canonicalize).
+fn normalize_existing_path(p: std::path::PathBuf) -> String {
+    if p.exists() {
+        if let Ok(c) = p.canonicalize() {
+            return c.to_string_lossy().to_string();
+        }
+    }
+    p.to_string_lossy().to_string()
+}
+
 /// Ищет иконку в директории инстанса: instance.png, icon.png, icon.jpg, .icon.*
 fn resolve_instance_icon(inst_dir: &std::path::Path, existing_icon: &str) -> String {
     if !existing_icon.is_empty() {
         let p = std::path::Path::new(existing_icon);
-        if p.is_absolute() && p.exists() { return existing_icon.to_string(); }
+        if p.is_absolute() && p.exists() {
+            return normalize_existing_path(p.to_path_buf());
+        }
         let rel = inst_dir.join(existing_icon);
-        if rel.exists() { return rel.to_string_lossy().to_string(); }
+        if rel.exists() {
+            return normalize_existing_path(rel);
+        }
     }
     for name in ["instance.png", "icon.png", "icon.jpg", "icon.webp"] {
         let p = inst_dir.join(name);
-        if p.exists() { return p.to_string_lossy().to_string(); }
+        if p.exists() {
+            return normalize_existing_path(p);
+        }
     }
     if let Ok(entries) = fs::read_dir(inst_dir) {
         for e in entries.flatten() {
             let n = e.file_name().to_string_lossy().to_string();
             if n == ".icon.png" || n == ".icon.jpg" || n == ".icon.webp" {
-                return e.path().to_string_lossy().to_string();
+                return normalize_existing_path(e.path());
             }
         }
     }
@@ -87,7 +103,7 @@ pub fn create(name: &str, game_version: &str, loader: &str, loader_version: &str
                 let ext = src_p.extension().and_then(|e| e.to_str()).unwrap_or("png");
                 let dest = inst_dir.join(format!("icon.{}", ext));
                 let _ = fs::copy(src_p, &dest);
-                icon_path = dest.to_string_lossy().to_string();
+                icon_path = normalize_existing_path(dest);
             }
         }
     }
@@ -123,6 +139,23 @@ pub async fn delete(id: &str) -> Result<()> {
         }
         tokio::fs::remove_dir_all(&inst_dir).await?;
     }
+    Ok(())
+}
+
+/// Добавляет секунды наигранного времени к `instance.json` (после сессии).
+pub fn add_playtime(id: &str, seconds: u64) -> Result<()> {
+    if seconds == 0 {
+        return Ok(());
+    }
+    let json_path = get_data_dir().join("instances").join(id).join("instance.json");
+    if !json_path.exists() {
+        return Ok(());
+    }
+    let content = fs::read_to_string(&json_path)?;
+    let mut conf: InstanceConfig = serde_json::from_str(&content)
+        .map_err(|e| Error::Custom(format!("instance.json: {}", e)))?;
+    conf.playtime = conf.playtime.saturating_add(seconds);
+    fs::write(json_path, serde_json::to_string_pretty(&conf)?)?;
     Ok(())
 }
 

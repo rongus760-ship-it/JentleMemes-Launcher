@@ -13,6 +13,9 @@ pub struct AccountInfo {
     pub acc_type: String,
     #[serde(default)]
     pub active_skin_id: String,
+    /// Refresh token Microsoft (offline_access); нужен для обновления Minecraft-сессии при каждом запуске.
+    #[serde(default)]
+    pub ms_refresh_token: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -85,6 +88,9 @@ pub struct LauncherSettings {
     pub curseforge_api_key: String,
     #[serde(default)]
     pub custom_themes: Vec<serde_json::Value>,
+    /// Показывать в Discord статус «играет в Minecraft» на время сессии (нужен Application ID в `discord_presence.rs`).
+    #[serde(default = "default_true")]
+    pub discord_rich_presence: bool,
 }
 
 fn default_true() -> bool {
@@ -109,6 +115,7 @@ impl Default for LauncherSettings {
             mod_provider: "modrinth".into(),
             curseforge_api_key: String::new(),
             custom_themes: vec![],
+            discord_rich_presence: true,
         }
     }
 }

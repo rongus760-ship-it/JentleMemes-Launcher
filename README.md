@@ -2,7 +2,7 @@
 
 Лаунчер для Minecraft на базе **Tauri 2** и **React**. Управление сборками, модами, серверами и аккаунтами в одном приложении с поддержкой кастомных тем, Modrinth и CurseForge.
 
-![version](https://img.shields.io/badge/version-1.0.4--beta-green)
+![version](https://img.shields.io/badge/version-1.0.5--beta.1-green)
 
 ## Возможности
 
@@ -15,6 +15,16 @@
 - **Скины** — пресеты скинов (из файла и по нику), 2D/3D просмотр с корректным рендером, slim/default модели, плащи
 - **Темы** — 8 встроенных тем + кастомные (простой и расширенный режим) + авто-тема по фоновому изображению
 - **Обновления** — автоматическая проверка и обновление лаунчера через API
+- **Наигранное время** — накопление секунд по каждой сборке (карточка в библиотеке)
+- **Discord Rich Presence** — опциональный статус «играет» на время сессии (см. ниже)
+
+### Discord Rich Presence (разработчикам)
+
+1. Создайте приложение в [Discord Developer Portal](https://discord.com/developers/applications) → скопируйте **Application ID** (не секрет).
+2. Вставьте ID в константу `DISCORD_APPLICATION_ID` в файле [`src-tauri/src/core/discord_presence.rs`](src-tauri/src/core/discord_presence.rs). Пока строка пустая, Rich Presence не подключается к IPC (настройка в лаунчере не навредит).
+3. (Опционально) В разделе **Rich Presence → Art Assets** загрузите картинки и укажите их ключи в коде через `.assets(...)` у активности.
+
+У пользователя должен быть запущен **Discord-клиент**. Переключатель: **Настройки → Discord Rich Presence**.
 
 ## Требования
 
@@ -47,12 +57,29 @@ npm run tauri build
 npx tauri build --bundles deb
 npx tauri build --bundles appimage
 
+# С авто-установкой linuxdeploy в ~/.local/bin (если пишет "failed to run linuxdeploy")
+npm run tauri:build:linux
+# или только deb / только AppImage
+npm run tauri:build:deb
+npm run tauri:build:appimage
+
 # Копирование артефактов с расширениями
 npm run package:linux
 ```
 
 Собранное приложение: `src-tauri/target/release/jentlememes-launcher`
 Пакеты: `src-tauri/target/release/bundle/`
+
+**Arch Linux:** Tauri не выдаёт готовый `.pkg.tar.zst`. Обычно достаточно **AppImage** или **бинарника** из `target/release/`. Если нужен архив под админку «Arch / tar.zst»:
+
+```bash
+cd src-tauri/target/release
+tar -cvf - jentlememes-launcher | zstd -19 -o "JentleMemesLauncher_${VERSION}.tar.zst"
+```
+
+Свой PKGBUILD + `makepkg -f` → загрузи получившийся `.pkg.tar.zst` в то же поле в админке (сервер сохранит расширение).
+
+**Админка на сайте:** поля `.deb` и Arch уже в репозитории сайта (`templates/admin.html`). Если на **jentlememes.ru** их нет — залей обновлённый шаблон на сервер в `/var/www/jentlememes/templates/` и перезапусти WSGI.
 
 ### Сборка Windows-установщика (из Linux)
 

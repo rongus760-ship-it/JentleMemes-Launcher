@@ -1,11 +1,12 @@
 use std::path::Path;
 use std::process::Command as StdCommand;
 use serde_json::Value;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tokio::io::AsyncWriteExt;
 
 use crate::config::get_data_dir;
 use crate::core::api::HTTP_CLIENT;
+use crate::core::progress_emit::emit_download_progress;
 use crate::core::types::DownloadProgress;
 use crate::error::{Result, Error};
 
@@ -118,11 +119,12 @@ pub async fn ensure_java(app: &AppHandle, major_version: u32) -> Result<String> 
     std::fs::create_dir_all(&java_base)?;
     let archive_path = java_base.join(&file_name);
 
-    let _ = app.emit("download_progress", DownloadProgress {
+    emit_download_progress(app, DownloadProgress {
         task_name: format!("Скачивание Java {}...", major_version),
         downloaded: 0,
         total: if file_size > 0 { (file_size / 1024 / 1024) as usize } else { 100 },
         instance_id: None,
+        ..Default::default()
     });
 
     // Stream download to file
@@ -144,21 +146,23 @@ pub async fn ensure_java(app: &AppHandle, major_version: u32) -> Result<String> 
 
         let dl_mb = (downloaded_bytes / 1024 / 1024) as usize;
         if dl_mb % 5 == 0 || downloaded_bytes == total_bytes {
-            let _ = app.emit("download_progress", DownloadProgress {
+            emit_download_progress(app, DownloadProgress {
                 task_name: format!("Скачивание Java {}...", major_version),
                 downloaded: dl_mb,
                 total: total_mb,
                 instance_id: None,
+                ..Default::default()
             });
         }
     }
     drop(out_file);
 
-    let _ = app.emit("download_progress", DownloadProgress {
+    emit_download_progress(app, DownloadProgress {
         task_name: format!("Распаковка Java {}...", major_version),
         downloaded: 0,
         total: 1,
         instance_id: None,
+        ..Default::default()
     });
 
     std::fs::create_dir_all(&java_dir)?;
@@ -182,11 +186,12 @@ pub async fn ensure_java(app: &AppHandle, major_version: u32) -> Result<String> 
         return Err(Error::Custom("Не удалось распаковать Java".into()));
     }
 
-    let _ = app.emit("download_progress", DownloadProgress {
+    emit_download_progress(app, DownloadProgress {
         task_name: format!("Java {} готова!", major_version),
         downloaded: 1,
         total: 1,
         instance_id: None,
+        ..Default::default()
     });
 
     find_java_binary(&java_dir).ok_or_else(|| {

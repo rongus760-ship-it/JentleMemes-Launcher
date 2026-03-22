@@ -77,7 +77,7 @@ export default function WelcomePage({ onNext }: Props) {
         transition={{ delay: 0.7 }}
         className="text-[11px] text-white/20 mt-2"
       >
-        Версия 1.0.4 - BETA_Prebuild
+        Версия 1.0.5-beta.1
       </motion.span>
     </div>
   );

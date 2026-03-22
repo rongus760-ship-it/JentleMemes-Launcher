@@ -2,11 +2,12 @@ use std::fs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use serde_json::Value;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tokio::sync::Semaphore;
 use crate::error::{Result, Error};
 use crate::core::api;
 use crate::config::get_data_dir;
+use crate::core::progress_emit::emit_download_progress;
 use crate::core::types::{DownloadProgress, VersionInfo, Library};
 use crate::core::utils::download::download_file;
 use crate::core::utils::maven::maven_to_path;
@@ -257,12 +258,13 @@ pub async fn download_game_files(app: AppHandle, version_id: &str, instance_id: 
         let semaphore = Arc::new(Semaphore::new(15));
         let mut handles = Vec::new();
 
-        app.emit("download_progress", DownloadProgress {
+        emit_download_progress(&app, DownloadProgress {
             task_name: format!("Скачивание библиотек (0/{})...", total_tasks),
             downloaded: 0,
             total: total_tasks,
             instance_id: inst_id_opt.clone(),
-        }).ok();
+            ..Default::default()
+        });
 
         for (url, dest) in tasks {
             let dl_counter = downloaded.clone();
@@ -287,11 +289,12 @@ pub async fn download_game_files(app: AppHandle, version_id: &str, instance_id: 
                 }
 
                 let current = dl_counter.fetch_add(1, Ordering::SeqCst) + 1;
-                let _ = app_clone.emit("download_progress", DownloadProgress {
+                emit_download_progress(&app_clone, DownloadProgress {
                     task_name: format!("Скачивание библиотек ({}/{})...", current, total_tasks),
                     downloaded: current,
                     total: total_tasks,
                     instance_id: inst_id.clone(),
+                    ..Default::default()
                 });
             }));
         }
@@ -357,12 +360,13 @@ pub async fn download_game_files(app: AppHandle, version_id: &str, instance_id: 
                             let sem = Arc::new(Semaphore::new(30));
                             let mut handles = Vec::new();
 
-                            app.emit("download_progress", DownloadProgress {
+                            emit_download_progress(&app, DownloadProgress {
                                 task_name: format!("Скачивание ассетов (0/{})...", total_assets),
                                 downloaded: 0,
                                 total: total_assets,
                                 instance_id: inst_id_opt.clone(),
-                            }).ok();
+                                ..Default::default()
+                            });
 
                             for (url, dest) in asset_tasks {
                                 let dl = downloaded.clone();
@@ -381,11 +385,12 @@ pub async fn download_game_files(app: AppHandle, version_id: &str, instance_id: 
                                     }
                                     let cur = dl.fetch_add(1, Ordering::SeqCst) + 1;
                                     if cur % 20 == 0 || cur == total {
-                                        let _ = app_c.emit("download_progress", DownloadProgress {
+                                        emit_download_progress(&app_c, DownloadProgress {
                                             task_name: format!("Скачивание ассетов ({}/{})...", cur, total),
                                             downloaded: cur,
                                             total,
                                             instance_id: inst_id.clone(),
+                                            ..Default::default()
                                         });
                                     }
                                 }));
@@ -472,12 +477,13 @@ pub async fn download_game_files(app: AppHandle, version_id: &str, instance_id: 
             println!("[DEBUG] Папка создана: {:?}", p);
         }
 
-        app.emit("download_progress", DownloadProgress {
+        emit_download_progress(&app, DownloadProgress {
             task_name: "Скачивание ядра Minecraft...".into(),
             downloaded: 0,
             total: 1,
             instance_id: inst_id_opt.clone(),
-        }).ok();
+            ..Default::default()
+        });
 
         println!("[DEBUG] Начинаем скачивание с URL: {}", url);
 
@@ -486,12 +492,13 @@ pub async fn download_game_files(app: AppHandle, version_id: &str, instance_id: 
                 println!("[DEBUG] Скачано {} байт", bytes.len());
                 fs::write(&jar_path, bytes)?;
                 println!("[DEBUG] Файл сохранён: {:?}", jar_path);
-                app.emit("download_progress", DownloadProgress {
+                emit_download_progress(&app, DownloadProgress {
                     task_name: "Скачивание ядра Minecraft...".into(),
                     downloaded: 1,
                     total: 1,
                     instance_id: inst_id_opt.clone(),
-                }).ok();
+                    ..Default::default()
+                });
             }
             Err(e) => {
                 eprintln!("[ERROR] Ошибка скачивания ядра: {}", e);
@@ -580,12 +587,13 @@ pub async fn download_game_files(app: AppHandle, version_id: &str, instance_id: 
             let downloaded = Arc::new(AtomicUsize::new(0));
             let mut handles = Vec::new();
 
-            app.emit("download_progress", DownloadProgress {
+            emit_download_progress(&app, DownloadProgress {
                 task_name: "Скачивание файлов Forge...".into(),
                 downloaded: 0,
                 total: total_maven,
                 instance_id: inst_id_opt.clone(),
-            }).ok();
+                ..Default::default()
+            });
 
             for (url, dest) in maven_tasks {
                 let dl_counter = downloaded.clone();
@@ -609,11 +617,12 @@ pub async fn download_game_files(app: AppHandle, version_id: &str, instance_id: 
                     }
                     let current = dl_counter.fetch_add(1, Ordering::SeqCst) + 1;
                     if current % 5 == 0 || current == total {
-                        let _ = app_clone.emit("download_progress", DownloadProgress {
+                        emit_download_progress(&app_clone, DownloadProgress {
                             task_name: "Скачивание файлов Forge...".into(),
                             downloaded: current,
                             total,
                             instance_id: inst_id.clone(),
+                            ..Default::default()
                         });
                     }
                 }));

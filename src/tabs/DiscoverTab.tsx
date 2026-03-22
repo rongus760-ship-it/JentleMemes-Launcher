@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Download, ChevronLeft, ChevronRight, Loader2, Package, Image as ImageIcon, Sparkles, Layers, Link, X, AlignLeft, List, CheckCircle2, RefreshCw } from "lucide-react";
+import { Search, Download, ChevronLeft, ChevronRight, Loader2, Package, Image as ImageIcon, Sparkles, Layers, Link, X, AlignLeft, List, CheckCircle2, RefreshCw, ArrowDownWideNarrow, ArrowUpWideNarrow } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
@@ -59,7 +59,7 @@ function CustomSelect({ label, value, options, onChange, disabled }: any) {
       </div>
       <AnimatePresence>
         {isOpen && (
-          <motion.div initial={{ opacity: 0, y: -10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute top-[100%] mt-2 w-full bg-[var(--input-bg)]/95 backdrop-blur-xl border border-white/10 rounded-xl z-[20000] max-h-60 overflow-y-auto custom-scrollbar shadow-[0_10px_40px_rgba(0,0,0,0.8)]">
+          <motion.div initial={{ opacity: 0, y: -8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={{ type: "spring", stiffness: 520, damping: 32, mass: 0.55 }} className="absolute top-[100%] mt-2 w-full bg-[var(--input-bg)]/95 backdrop-blur-xl border border-white/10 rounded-xl z-[20000] max-h-60 overflow-y-auto custom-scrollbar shadow-[0_10px_40px_rgba(0,0,0,0.8)]">
             {safeOptions.map((o: any) => (
               <div key={o.value} onClick={() => { onChange(o.value); setIsOpen(false); }} className={`px-4 py-2 cursor-pointer transition-colors text-sm ${value === o.value ? 'bg-jm-accent/20 text-jm-accent-light' : 'text-white hover:bg-white/10'}`}>{o.label}</div>
             ))}
@@ -82,7 +82,11 @@ export default function DiscoverTab({ contextInstance, installedMods = [], onMod
   const [page, setPage] = useState(0);
   const [pageInput, setPageInput] = useState("1");
   const [sortMode, setSortMode] = useState<"relevance" | "popularity" | "updated" | "downloads" | "name" | "author" | "rating">("relevance");
+  /** true = по убыванию (популярные сверху), false = по возрастанию */
+  const [sortDesc, setSortDesc] = useState(true);
   const [totalHits, setTotalHits] = useState(0);
+  /** Просмотр скриншотов: null или { urls, index } */
+  const [galleryLightbox, setGalleryLightbox] = useState<{ urls: string[]; index: number } | null>(null);
 
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const[projectDetails, setProjectDetails] = useState<any>(null);
@@ -117,6 +121,33 @@ export default function DiscoverTab({ contextInstance, installedMods = [], onMod
   }, [contextInstance]);
 
   useEffect(() => { setLocalInstalledMods(Array.isArray(installedMods) ? installedMods : []); }, [installedMods]);
+
+  useEffect(() => {
+    if (!galleryLightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setGalleryLightbox(null);
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setGalleryLightbox((cur) => {
+          if (!cur?.urls.length) return cur;
+          return { ...cur, index: (cur.index + 1) % cur.urls.length };
+        });
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setGalleryLightbox((cur) => {
+          if (!cur?.urls.length) return cur;
+          const n = cur.urls.length;
+          return { ...cur, index: (cur.index - 1 + n) % n };
+        });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [galleryLightbox]);
 
   useEffect(() => {
     if (projectType !== "custom") return;
@@ -161,7 +192,7 @@ export default function DiscoverTab({ contextInstance, installedMods = [], onMod
     setSearchError(null);
     try {
       const queryTrim = (query || "").trim();
-      const params = { query: queryTrim, projectType: projectType || "mod", gameVersion: (gameVersion || "").trim(), loader: loader || "", categories: selectedCategories || [], page: page || 0, sort: sortMode };
+      const params = { query: queryTrim, projectType: projectType || "mod", gameVersion: (gameVersion || "").trim(), loader: loader || "", categories: selectedCategories || [], page: page || 0, sort: sortMode, sortDesc };
       const data: any = modProvider === "hybrid"
         ? await invoke("search_hybrid", params)
         : modProvider === "curseforge"
@@ -201,7 +232,7 @@ export default function DiscoverTab({ contextInstance, installedMods = [], onMod
     }
   }, [projectType]);
 
-  useEffect(() => { if (projectType !== "custom") { const t = setTimeout(() => { setPage(0); setPageInput("1"); fetchProjects(); }, 500); return () => clearTimeout(t); } },[query, projectType, gameVersion, loader, selectedCategories, modProvider, sortMode]);
+  useEffect(() => { if (projectType !== "custom") { const t = setTimeout(() => { setPage(0); setPageInput("1"); fetchProjects(); }, 500); return () => clearTimeout(t); } },[query, projectType, gameVersion, loader, selectedCategories, modProvider, sortMode, sortDesc]);
   useEffect(() => { if (projectType !== "custom" && (page !== 0 || !query)) fetchProjects(); setPageInput((page + 1).toString()); }, [page]);
 
   const handlePageSubmit = (e: any) => {
@@ -412,15 +443,27 @@ export default function DiscoverTab({ contextInstance, installedMods = [], onMod
             {!noLoaderTypes.includes(projectType) && (
               <CustomSelect label="Ядро" value={loader} onChange={setLoader} disabled={loaderLocked} options={[{ value: "", label: "Любое" }, { value: "fabric", label: "Fabric" }, { value: "forge", label: "Forge" }, { value: "neoforge", label: "NeoForge" }, { value: "quilt", label: "Quilt" }]} />
             )}
-            <CustomSelect label="Сортировка" value={sortMode} onChange={setSortMode} options={[
-              { value: "relevance", label: "Релевантность" },
-              { value: "popularity", label: "Популярность" },
-              { value: "downloads", label: "Скачивания" },
-              { value: "updated", label: "Последние" },
-              { value: "rating", label: "Рейтинг" },
-              { value: "name", label: "Имя" },
-              { value: "author", label: "Автор" },
-            ]} />
+            <div className="flex flex-wrap items-end gap-1.5">
+              <CustomSelect label="Сортировка" value={sortMode} onChange={setSortMode} options={[
+                { value: "relevance", label: "Релевантность" },
+                { value: "popularity", label: "Популярность" },
+                { value: "downloads", label: "Скачивания" },
+                { value: "updated", label: "Обновление" },
+                { value: "rating", label: "Рейтинг" },
+                { value: "name", label: "Имя" },
+                { value: "author", label: "Автор" },
+              ]} />
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.94 }}
+                title={sortDesc ? "По убыванию (больше → меньше). Клик — по возрастанию" : "По возрастанию (меньше → больше). Клик — по убыванию"}
+                onClick={() => setSortDesc((d) => !d)}
+                className="h-[38px] min-w-[40px] px-2.5 rounded-lg border border-white/10 bg-black/50 text-jm-accent hover:bg-jm-accent/15 hover:border-jm-accent/40 transition-colors flex items-center justify-center shadow-inner"
+              >
+                {sortDesc ? <ArrowDownWideNarrow size={18} /> : <ArrowUpWideNarrow size={18} />}
+              </motion.button>
+            </div>
             {/* Provider select for mobile (hidden on md+) */}
             <div className="md:hidden">
               <CustomSelect label="Источник" value={modProvider} onChange={(v: string) => { const val = v as "modrinth" | "curseforge" | "hybrid"; setModProvider(val); invoke("load_settings").then((s: any) => { invoke("save_settings", { settings: { ...s, mod_provider: val } }).catch(() => {}); }).catch(() => {}); }} options={providerOptions} />
@@ -467,15 +510,24 @@ export default function DiscoverTab({ contextInstance, installedMods = [], onMod
               <p className="text-[var(--text-secondary)] text-lg mb-2">
                 {searchError === "curseforge_no_api_key"
                   ? "Для CurseForge нужен API ключ"
-                  : "CurseForge отклонил запрос (неверный ключ или лимит)"}
+                  : "CurseForge отклонил запрос (лимит, блокировка IP/VPN или ключ в настройках неверный)"}
               </p>
               <p className="text-sm text-jm-accent/90">Настройки → Экспериментальные → CurseForge API ключ</p>
-              <p className="text-xs text-[var(--text-secondary)] mt-2">Ключ можно получить на console.curseforge.com</p>
+              <p className="text-xs text-[var(--text-secondary)] mt-2">Если поле ключа заполнено — попробуйте очистить его (будет встроенный ключ). Свой ключ: console.curseforge.com</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pb-4">
-              {results.map((project) => (
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} key={project.project_id} onClick={() => openProject(project)} className="bg-jm-card border border-white/5 hover:border-jm-accent/50 rounded-xl p-3 flex flex-col transition-colors cursor-pointer group shadow-xl">
+              {results.map((project, ri) => (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 380, damping: 28, delay: Math.min(ri * 0.03, 0.35) }}
+                  whileHover={{ y: -4, scale: 1.015, transition: { type: "spring", stiffness: 400, damping: 18 } }}
+                  whileTap={{ scale: 0.98 }}
+                  key={project.project_id}
+                  onClick={() => openProject(project)}
+                  className="bg-jm-card border border-white/5 hover:border-jm-accent/50 rounded-xl p-3 flex flex-col transition-shadow cursor-pointer group shadow-xl hover:shadow-[0_12px_40px_rgba(134,168,134,0.12)]"
+                >
                   <div className="flex items-start gap-3 mb-2">
                     {project?.icon_url ? (
                       <>
@@ -501,9 +553,9 @@ export default function DiscoverTab({ contextInstance, installedMods = [], onMod
 
       <AnimatePresence>
         {selectedProject && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex">
-            <div className="hidden sm:block sm:w-[10%] md:w-[15%] lg:w-[25%] bg-black/60 backdrop-blur-sm shrink-0" onClick={() => setSelectedProject(null)} />
-            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 30, stiffness: 300 }} className="w-full sm:w-[90%] md:w-[85%] lg:w-[75%] h-full bg-jm-bg border-l border-white/10 shadow-2xl flex flex-col overflow-hidden relative">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="fixed inset-0 z-50 flex">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="hidden sm:block sm:w-[10%] md:w-[15%] lg:w-[25%] bg-black/60 backdrop-blur-md shrink-0" onClick={() => setSelectedProject(null)} />
+            <motion.div initial={{ x: "104%", opacity: 0.92 }} animate={{ x: 0, opacity: 1 }} exit={{ x: "104%", opacity: 0.9 }} transition={{ type: "spring", damping: 26, stiffness: 320, mass: 0.72 }} className="w-full sm:w-[90%] md:w-[85%] lg:w-[75%] h-full bg-jm-bg border-l border-white/10 shadow-2xl flex flex-col overflow-hidden relative">
               <div className="bg-gradient-to-r from-jm-card to-black/40 p-3 md:p-4 border-b border-white/10 flex gap-3 md:gap-4 items-center shrink-0">
                 {selectedProject?.icon_url ? (
                   <><img src={selectedProject.icon_url} alt="" className="w-12 h-12 md:w-16 md:h-16 rounded-xl object-cover bg-black/50 shadow-lg border border-white/20 shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} /><div className="hidden w-12 h-12 md:w-16 md:h-16 rounded-xl bg-black/50 border border-white/20 flex items-center justify-center text-sm font-medium text-white/70 shrink-0">{((selectedProject?.title || "?") as string).split(/\s+/).map((w: string) => w[0]).join("").slice(0, 2).toUpperCase() || "?"}</div></>
@@ -552,16 +604,28 @@ export default function DiscoverTab({ contextInstance, installedMods = [], onMod
                         return <div className="text-[var(--text-secondary)] text-center py-10">Скриншотов нет</div>;
                       }
                       return (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="columns-1 sm:columns-2 lg:columns-3 gap-3" style={{ columnFill: "balance" as const }}>
                           {galleryUrls.map((u: string, idx: number) => (
-                            <div key={`${u}-${idx}`} className="rounded-xl overflow-hidden border border-white/10 bg-black/30">
+                            <motion.button
+                              type="button"
+                              key={`${u}-${idx}`}
+                              initial={{ opacity: 0, scale: 0.96 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 28, delay: Math.min(idx * 0.04, 0.4) }}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => setGalleryLightbox({ urls: galleryUrls, index: idx })}
+                              className="mb-3 w-full break-inside-avoid rounded-xl overflow-hidden border border-white/10 bg-white/[0.04] hover:border-jm-accent/45 hover:shadow-lg hover:shadow-jm-accent/10 transition-all text-left block focus:outline-none focus-visible:ring-2 focus-visible:ring-jm-accent/60"
+                            >
                               <img
                                 src={u}
                                 alt=""
-                                className="w-full h-64 object-contain bg-black"
+                                className="w-full h-auto max-w-full align-bottom block"
+                                loading="lazy"
+                                decoding="async"
                                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                               />
-                            </div>
+                            </motion.button>
                           ))}
                         </div>
                       );
@@ -701,6 +765,83 @@ export default function DiscoverTab({ contextInstance, installedMods = [], onMod
               )}
               <button onClick={() => setDatapackTarget(null)} className="w-full py-3 rounded-xl font-bold bg-white/5 hover:bg-white/10 text-white transition-colors">Отмена</button>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Лайтбокс скриншотов (клик по плитке, стрелки / свайп клавиатуры) */}
+      <AnimatePresence>
+        {galleryLightbox && galleryLightbox.urls.length > 0 && (
+          <motion.div
+            role="dialog"
+            aria-modal
+            aria-label="Просмотр скриншота"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 sm:p-10"
+            onClick={() => setGalleryLightbox(null)}
+          >
+            <button
+              type="button"
+              className="absolute top-3 right-3 z-20 p-2.5 rounded-full bg-white/10 hover:bg-red-500/35 text-white transition-colors duration-200"
+              onClick={(e) => {
+                e.stopPropagation();
+                setGalleryLightbox(null);
+              }}
+              aria-label="Закрыть"
+            >
+              <X size={22} />
+            </button>
+            <button
+              type="button"
+              className="absolute left-1 sm:left-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-white/10 hover:bg-jm-accent/25 text-white transition-colors duration-200"
+              onClick={(e) => {
+                e.stopPropagation();
+                setGalleryLightbox((cur) => {
+                  if (!cur?.urls.length) return cur;
+                  const n = cur.urls.length;
+                  return { ...cur, index: (cur.index - 1 + n) % n };
+                });
+              }}
+              aria-label="Предыдущий"
+            >
+              <ChevronLeft size={28} />
+            </button>
+            <button
+              type="button"
+              className="absolute right-1 sm:right-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-white/10 hover:bg-jm-accent/25 text-white transition-colors duration-200"
+              onClick={(e) => {
+                e.stopPropagation();
+                setGalleryLightbox((cur) => {
+                  if (!cur?.urls.length) return cur;
+                  return { ...cur, index: (cur.index + 1) % cur.urls.length };
+                });
+              }}
+              aria-label="Следующий"
+            >
+              <ChevronRight size={28} />
+            </button>
+            <div className="max-w-[min(100%,96vw)] max-h-[88vh] flex items-center justify-center pointer-events-none">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.img
+                  key={`${galleryLightbox.index}-${galleryLightbox.urls[galleryLightbox.index]}`}
+                  src={galleryLightbox.urls[galleryLightbox.index]}
+                  alt=""
+                  initial={{ opacity: 0, scale: 0.94, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: -6 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.65 }}
+                  className="max-h-[85vh] max-w-full w-auto h-auto object-contain rounded-xl shadow-2xl border border-white/15 pointer-events-auto"
+                  onClick={(e) => e.stopPropagation()}
+                  draggable={false}
+                />
+              </AnimatePresence>
+            </div>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs font-medium text-white/70 bg-black/55 px-3 py-1.5 rounded-full border border-white/10 tabular-nums">
+              {galleryLightbox.index + 1} / {galleryLightbox.urls.length}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
