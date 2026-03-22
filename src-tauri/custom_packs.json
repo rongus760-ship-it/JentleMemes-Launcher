@@ -1,3 +1,10 @@
-{
-  "url": "https://example.com/packs.json"
-}
+[
+  {
+    "id": "jentle-main",
+    "title": "JentleMemes Main",
+    "description": "Основная сборка для сервера JentleMemes.",
+    "author": "JentleMemes",
+    "icon_url": "https://example.com/icons/jentle.png",
+    "url": "https://cdn.modrinth.com/data/xyz/versions/1.0/JentleMemes.mrpack"
+  }
+]

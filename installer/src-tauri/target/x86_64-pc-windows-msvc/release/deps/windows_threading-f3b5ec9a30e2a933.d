@@ -1,0 +1,10 @@
+/home/rongus/jentlememes-launcher/installer/src-tauri/target/x86_64-pc-windows-msvc/release/deps/windows_threading-f3b5ec9a30e2a933.d: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/bindings.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/pool.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/../readme.md
+
+/home/rongus/jentlememes-launcher/installer/src-tauri/target/x86_64-pc-windows-msvc/release/deps/libwindows_threading-f3b5ec9a30e2a933.rlib: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/bindings.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/pool.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/../readme.md
+
+/home/rongus/jentlememes-launcher/installer/src-tauri/target/x86_64-pc-windows-msvc/release/deps/libwindows_threading-f3b5ec9a30e2a933.rmeta: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/bindings.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/pool.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/../readme.md
+
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/lib.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/bindings.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/pool.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-threading-0.1.0/src/../readme.md:

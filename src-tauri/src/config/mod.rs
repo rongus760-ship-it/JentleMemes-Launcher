@@ -76,11 +76,15 @@ pub struct LauncherSettings {
     pub download_dependencies: bool,
     #[serde(default)]
     pub hybrid_provider_enabled: bool,
+    #[serde(default = "default_true")]
+    pub show_news: bool,
     #[serde(default)]
     pub mod_provider: String,
     /// CurseForge API key (from https://console.curseforge.com). If empty, CurseForge/Гибрид возвращают только Modrinth.
     #[serde(default)]
     pub curseforge_api_key: String,
+    #[serde(default)]
+    pub custom_themes: Vec<serde_json::Value>,
 }
 
 fn default_true() -> bool {
@@ -99,10 +103,12 @@ impl Default for LauncherSettings {
             last_world: None,
             theme: "jentle-dark".into(),
             background: "".into(),
+            show_news: true,
             download_dependencies: true,
             hybrid_provider_enabled: false,
             mod_provider: "modrinth".into(),
             curseforge_api_key: String::new(),
+            custom_themes: vec![],
         }
     }
 }
@@ -238,5 +244,41 @@ pub fn load_pack_source(inst_dir: &std::path::Path) -> Result<Option<PackSource>
 pub fn save_pack_source(inst_dir: &std::path::Path, source: &PackSource) -> Result<()> {
     let path = inst_dir.join("pack_source.json");
     fs::write(path, serde_json::to_string_pretty(source)?)?;
+    Ok(())
+}
+
+/// Load servers for a specific instance
+pub fn load_instance_servers(inst_dir: &std::path::Path) -> Result<Vec<RecentServer>> {
+    let path = inst_dir.join("servers.json");
+    if path.exists() {
+        let content = fs::read_to_string(path)?;
+        if let Ok(servers) = serde_json::from_str(&content) {
+            return Ok(servers);
+        }
+    }
+    Ok(vec![])
+}
+
+/// Save servers for a specific instance
+pub fn save_instance_servers(inst_dir: &std::path::Path, servers: &[RecentServer]) -> Result<()> {
+    let path = inst_dir.join("servers.json");
+    fs::write(path, serde_json::to_string_pretty(servers)?)?;
+    Ok(())
+}
+
+pub fn load_instance_last_world(inst_dir: &std::path::Path) -> Result<Option<LastWorldEntry>> {
+    let path = inst_dir.join("last_world.json");
+    if path.exists() {
+        let content = fs::read_to_string(path)?;
+        if let Ok(w) = serde_json::from_str(&content) {
+            return Ok(Some(w));
+        }
+    }
+    Ok(None)
+}
+
+pub fn save_instance_last_world(inst_dir: &std::path::Path, world: &LastWorldEntry) -> Result<()> {
+    let path = inst_dir.join("last_world.json");
+    fs::write(path, serde_json::to_string_pretty(world)?)?;
     Ok(())
 }

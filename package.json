@@ -1,12 +1,13 @@
 {
   "name": "jentlememes-launcher",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "build:win": "npm run build && cd src-tauri && cargo build --release --target x86_64-pc-windows-gnu && cd .. && ./scripts/fetch-webview2-loader.sh",
+    "package:linux": "bash scripts/package-linux-artifacts.sh",
     "preview": "vite preview",
     "tauri": "tauri"
   },

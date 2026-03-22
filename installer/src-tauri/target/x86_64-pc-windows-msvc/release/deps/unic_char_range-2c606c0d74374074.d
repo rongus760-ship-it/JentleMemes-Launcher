@@ -1,0 +1,17 @@
+/home/rongus/jentlememes-launcher/installer/src-tauri/target/x86_64-pc-windows-msvc/release/deps/unic_char_range-2c606c0d74374074.d: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/pkg_info.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/iter.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/range.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/macros.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/step.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/iter_fused.rs
+
+/home/rongus/jentlememes-launcher/installer/src-tauri/target/x86_64-pc-windows-msvc/release/deps/libunic_char_range-2c606c0d74374074.rlib: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/pkg_info.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/iter.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/range.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/macros.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/step.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/iter_fused.rs
+
+/home/rongus/jentlememes-launcher/installer/src-tauri/target/x86_64-pc-windows-msvc/release/deps/libunic_char_range-2c606c0d74374074.rmeta: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/pkg_info.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/iter.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/range.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/macros.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/step.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/iter_fused.rs
+
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/lib.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/pkg_info.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/iter.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/range.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/macros.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/step.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unic-char-range-0.9.0/src/iter_fused.rs:
+
+# env-dep:CARGO_PKG_DESCRIPTION=UNIC — Unicode Character Tools — Character Range and Iteration
+# env-dep:CARGO_PKG_NAME=unic-char-range
+# env-dep:CARGO_PKG_VERSION=0.9.0

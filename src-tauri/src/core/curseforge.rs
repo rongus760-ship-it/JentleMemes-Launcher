@@ -11,7 +11,7 @@ use crate::core::modrinth;
 const BASE: &str = "https://api.curseforge.com/v1";
 const MINECRAFT_GAME_ID: u32 = 432;
 /// Встроенный ключ для CurseForge API (как в Prism Launcher), чтобы юзерам не настраивать вручную.
-const BUILTIN_CURSEFORGE_API_KEY: &str = "$2a$10$CHeqArQS/aZuEPZig9D/eePxauUkFVsOyhLakK6skTnLjm8.GDp/K";
+const BUILTIN_CURSEFORGE_API_KEY: &str = "$2a$10$DnVHLcP.vV9mBN8z5n5LP.IYAaRMf1eSwG0VdWdAJpOljveXl.lgC";
 
 fn api_key() -> Option<String> {
     let key = config::load_settings().ok()?.curseforge_api_key.trim().to_string();
@@ -37,22 +37,21 @@ pub async fn search(
     loader: &str,
     _categories: Vec<String>,
     page: usize,
+    sort: &str,
 ) -> Result<Value> {
     let key = match api_key() {
         Some(k) => k,
         None => return Ok(json!({ "hits": [], "total_hits": 0, "error": "curseforge_no_api_key" })),
     };
 
-    if project_type != "mod" && project_type != "modpack" {
-        return Ok(json!({ "hits": [], "total_hits": 0 }));
-    }
-
     let page_size = 20u32;
     let index = (page as u32) * page_size;
-    // CurseForge API: GET /v1/mods/search с query-параметрами (не POST)
-    let class_id: u32 = if project_type == "modpack" { 4471 } else { 6 };
-    // Без версии CurseForge часто возвращает пустой список — подставляем популярную
-    let game_ver = if game_version.is_empty() { "1.21.1" } else { game_version };
+    let class_id: u32 = match project_type {
+        "modpack" => 4471,
+        "resourcepack" => 12,
+        "shader" => 6552,
+        _ => 6, // mod, datapack, etc. (datapack: CF has no dedicated class; approximate)
+    };
 
     let client = reqwest::Client::builder()
         .user_agent("JentleMemesLauncher/1.0")
@@ -65,10 +64,33 @@ pub async fn search(
     if !query.is_empty() {
         req = req.query(&[("searchFilter", query)]);
     }
-    req = req.query(&[("gameVersion", game_ver)]);
-    if let Some(ml) = mod_loader_type(loader) {
-        req = req.query(&[("modLoaderType", ml)]);
+    // В документации модлоадер должен быть "coupled" с gameVersion.
+    // Поэтому если версия "Любая" (пустая строка) — не передаём ни gameVersion, ни modLoaderType.
+    if !game_version.is_empty() {
+        req = req.query(&[("gameVersion", game_version)]);
+        if project_type == "mod" || project_type == "modpack" {
+            if let Some(ml) = mod_loader_type(loader) {
+                req = req.query(&[("modLoaderType", ml)]);
+            }
+        }
     }
+
+    // Сортировка (Relevance/Popularity/etc).
+    // ModsSearchSortField enum: Featured=1, Popularity=2, LastUpdated=3, Name=4, Author=5, TotalDownloads=6, Rating=12.
+    let sort_field: u32 = match sort {
+        "relevance" | "featured" => 1,
+        "popularity" => 2,
+        "updated" | "last_updated" => 3,
+        "name" => 4,
+        "author" => 5,
+        "downloads" => 6,
+        "rating" => 12,
+        _ => 1,
+    };
+    req = req.query(&[
+        ("sortField", sort_field.to_string()),
+        ("sortOrder", "desc".to_string()),
+    ]);
     let res = req.send().await?;
 
     let status = res.status();
@@ -150,8 +172,30 @@ pub async fn get_project(id: &str) -> Result<Value> {
         None => return Ok(Value::Null),
     };
 
+    // CurseForge API:
+    // - `name` - заголовок
+    // - `summary` - краткое описание
+    // - расширенное HTML-описание отдаётся отдельным эндпоинтом `/mods/{modId}/description`
     let title = m.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let body = m.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let summary = m.get("summary").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let mut body = summary.clone();
+
+    // Скриншоты: `screenshots[]` содержит thumbnailUrl/url.
+    let gallery: Vec<String> = m
+        .get("screenshots")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|s| {
+                    let url = s
+                        .get("url")
+                        .and_then(|v| v.as_str())
+                        .or_else(|| s.get("thumbnailUrl").and_then(|v| v.as_str()));
+                    url.map(|u| u.to_string())
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let icon_url = m
         .get("logo")
         .and_then(|l| l.get("url"))
@@ -159,9 +203,29 @@ pub async fn get_project(id: &str) -> Result<Value> {
         .unwrap_or("")
         .to_string();
 
+    // Full HTML description (if available)
+    let desc_res = client
+        .get(format!("{}/mods/{}/description", BASE, id))
+        .header("x-api-key", &key)
+        .header("Accept", "application/json")
+        .send()
+        .await;
+    if let Ok(desc_res) = desc_res {
+        if desc_res.status().is_success() {
+            if let Ok(desc_json) = desc_res.json::<Value>().await {
+                if let Some(desc_data) = desc_json.get("data").and_then(|v| v.as_str()) {
+                    body = desc_data.to_string();
+                }
+            }
+        }
+    }
+
     Ok(json!({
+        "_source": "curseforge",
         "title": title,
+        "summary": summary,
         "body": body,
+        "gallery": gallery,
         "icon_url": icon_url,
         "project_type": "mod",
     }))
@@ -213,27 +277,38 @@ pub async fn get_versions(id: &str) -> Result<Value> {
                         .collect()
                 })
                 .unwrap_or_default();
-            let loaders: Vec<String> = f
-                .get("gameVersions")
-                .and_then(|v| v.as_array())
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|v| {
-                            let s = v.as_str()?;
-                            if s.eq_ignore_ascii_case("fabric") || s.eq_ignore_ascii_case("forge") || s.eq_ignore_ascii_case("quilt") || s.eq_ignore_ascii_case("neoforge") {
-                                Some(s.to_string())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
+            // У файла `gameVersions` — это версии игры, а не модлоадеры.
+            // Поэтому loader мы определяем по имени файла (эвристика),
+            // чтобы фильтры в UI не "гасили" результаты.
+            let lower_hint = format!("{} {}", display_name, filename).to_lowercase();
+            let has_neoforge = lower_hint.contains("neoforge") || lower_hint.contains("neo-forge");
+            let mut loaders: Vec<String> = Vec::new();
+            if lower_hint.contains("fabric") {
+                loaders.push("fabric".to_string());
+            }
+            if has_neoforge {
+                loaders.push("neoforge".to_string());
+            } else if lower_hint.contains("forge") {
+                // Важно: "neoforge" тоже содержит "forge", поэтому выше мы проверили neoforge отдельно.
+                loaders.push("forge".to_string());
+            }
+            if lower_hint.contains("quilt") {
+                loaders.push("quilt".to_string());
+            }
+            if loaders.is_empty() {
+                // Если не смогли распознать — не ограничиваем фильтрами.
+                loaders = vec![
+                    "fabric".to_string(),
+                    "forge".to_string(),
+                    "neoforge".to_string(),
+                    "quilt".to_string(),
+                ];
+            }
             json!({
                 "id": fid.to_string(),
                 "name": display_name,
                 "game_versions": game_versions,
-                "loaders": if loaders.is_empty() { vec!["forge".to_string()] } else { loaders },
+                "loaders": loaders,
                 "files": [{
                     "url": url,
                     "filename": filename,
@@ -254,37 +329,48 @@ pub async fn search_hybrid(
     loader: &str,
     categories: Vec<String>,
     page: usize,
+    sort: &str,
 ) -> Result<Value> {
     let (mr, cf) = tokio::join!(
-        modrinth::search(query, project_type, game_version, loader, categories.clone(), page),
-        search(query, project_type, game_version, loader, categories, page),
+        modrinth::search(query, project_type, game_version, loader, categories.clone(), page, sort),
+        search(query, project_type, game_version, loader, categories, page, sort),
     );
     let mr_json = mr.unwrap_or_else(|_| json!({ "hits": [], "total_hits": 0 }));
     let cf_json = cf.unwrap_or_else(|_| json!({ "hits": [], "total_hits": 0 }));
     let mr_hits: Vec<Value> = mr_json.get("hits").and_then(|h| h.as_array()).cloned().unwrap_or_default();
     let cf_hits: Vec<Value> = cf_json.get("hits").and_then(|h| h.as_array()).cloned().unwrap_or_default();
-    let mut by_key: HashMap<String, Value> = HashMap::new();
+    // Дедуплицируем, но сохраняем порядок (сортировку) — сначала Modrinth, потом CurseForge.
+    let mut seen: HashMap<String, ()> = HashMap::new();
+    let mut merged: Vec<Value> = Vec::new();
+
     for mut h in mr_hits {
         let key = h.get("title").and_then(|t| t.as_str()).unwrap_or("").to_lowercase();
-        if !key.is_empty() {
-            h["source"] = json!("modrinth");
-            h["modrinth_id"] = h.get("project_id").cloned().unwrap_or(Value::Null);
-            by_key.insert(key, h);
-        }
+        if key.is_empty() { continue; }
+        if seen.contains_key(&key) { continue; }
+        seen.insert(key, ());
+        h["source"] = json!("modrinth");
+        h["modrinth_id"] = h.get("project_id").cloned().unwrap_or(Value::Null);
+        merged.push(h);
     }
+
     for mut h in cf_hits {
         let key = h.get("title").and_then(|t| t.as_str()).unwrap_or("").to_lowercase();
-        if !key.is_empty() {
-            h["curseforge_id"] = h.get("project_id").cloned().unwrap_or(Value::Null);
-            if let Some(entry) = by_key.get_mut(&key) {
-                entry["curseforge_id"] = h.get("project_id").cloned().unwrap_or(Value::Null);
-            } else {
-                h["source"] = json!("curseforge");
-                by_key.insert(key, h);
+        if key.is_empty() { continue; }
+        h["curseforge_id"] = h.get("project_id").cloned().unwrap_or(Value::Null);
+        if seen.contains_key(&key) {
+            // если уже есть — просто обновим поле curseforge_id у найденного элемента
+            if let Some(existing_idx) = merged.iter().position(|x| {
+                x.get("title").and_then(|t| t.as_str()).unwrap_or("").to_lowercase() == key
+            }) {
+                merged[existing_idx]["curseforge_id"] = h.get("project_id").cloned().unwrap_or(Value::Null);
             }
+        } else {
+            seen.insert(key, ());
+            h["source"] = json!("curseforge");
+            merged.push(h);
         }
     }
-    let merged: Vec<Value> = by_key.into_values().collect();
+
     let total = merged.len();
     Ok(json!({ "hits": merged, "total_hits": total }))
 }

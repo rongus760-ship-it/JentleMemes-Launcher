@@ -67,7 +67,7 @@ pub fn sanitize_filename(name: &str) -> String {
     }
 }
 
-pub fn create(name: &str, game_version: &str, loader: &str, loader_version: &str) -> Result<String> {
+pub fn create(name: &str, game_version: &str, loader: &str, loader_version: &str, icon_src: Option<&str>) -> Result<String> {
     let base_name = sanitize_filename(name);
     let mut folder_name = base_name.clone();
     let mut inst_dir = get_data_dir().join("instances").join(&folder_name);
@@ -78,13 +78,27 @@ pub fn create(name: &str, game_version: &str, loader: &str, loader_version: &str
         counter += 1;
     }
     fs::create_dir_all(&inst_dir)?;
+
+    let mut icon_path = String::new();
+    if let Some(src) = icon_src {
+        if !src.is_empty() {
+            let src_p = std::path::Path::new(src);
+            if src_p.exists() {
+                let ext = src_p.extension().and_then(|e| e.to_str()).unwrap_or("png");
+                let dest = inst_dir.join(format!("icon.{}", ext));
+                let _ = fs::copy(src_p, &dest);
+                icon_path = dest.to_string_lossy().to_string();
+            }
+        }
+    }
+
     let conf = InstanceConfig {
         id: folder_name.clone(),
         name: name.to_string(),
         game_version: game_version.to_string(),
         loader: loader.to_string(),
         loader_version: loader_version.to_string(),
-        icon: "".into(),
+        icon: icon_path,
         settings: None,
         playtime: 0,
     };

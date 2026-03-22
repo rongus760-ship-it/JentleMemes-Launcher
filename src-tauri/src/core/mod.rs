@@ -12,3 +12,4 @@ pub mod mods;
 pub mod modrinth;
 pub mod curseforge;
 pub mod mrpack;
+pub mod updater;

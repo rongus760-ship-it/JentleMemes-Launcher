@@ -1,0 +1,2 @@
+cargo:rustc-link-search=native=/home/rongus/jentlememes-launcher/installer/src-tauri/target/x86_64-pc-windows-msvc/release/build/webview2-com-sys-26f3612329d8f60f/out/x64
+cargo:rustc-link-lib=advapi32

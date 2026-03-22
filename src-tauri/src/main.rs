@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![windows_subsystem = "windows"]
 
 mod commands;
 mod config;
@@ -86,6 +86,10 @@ fn main() {
             rename_instance,
             unlink_modpack,
             get_pack_source_info,
+            // launcher updates & news
+            fetch_launcher_news,
+            check_launcher_update,
+            download_and_apply_update,
             // utils
             get_system_ram,
             ping_server,
@@ -96,6 +100,15 @@ fn main() {
             fetch_custom_packs,
             get_custom_packs,
             refresh_custom_packs,
+            pick_image_file,
+            copy_background,
+            delete_background,
+            // window management
+            window_close,
+            window_minimize,
+            window_maximize,
+            window_drag,
+            window_is_maximized,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

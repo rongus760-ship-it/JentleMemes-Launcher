@@ -270,15 +270,16 @@ async fn build_metadata_for_folder(app: &AppHandle, instance_id: &str, folder: &
         for entry in entries.flatten() {
             let path = entry.path();
             let fname = entry.file_name().to_string_lossy().to_string();
-            let is_valid = path.is_file() && valid_ext.iter().any(|ext| fname.ends_with(ext));
-            if is_valid && !meta_map.contains_key(&fname) {
-                if let Ok(mut f) = fs::File::open(&path) {
-                    let mut hasher = Sha1::new();
-                    let _ = std::io::copy(&mut f, &mut hasher);
-                    let hash = format!("{:x}", hasher.finalize());
-                    hash_to_file.insert(hash.clone(), fname);
-                    hashes.push(hash);
-                }
+            let is_valid = path.is_file() && valid_ext.iter().any(|ext| fname.ends_with(ext) || fname.ends_with(&format!("{}.disabled", ext)));
+            if !is_valid { continue; }
+            let clean_name = fname.replace(".disabled", "");
+            if meta_map.contains_key(&clean_name) { continue; }
+            if let Ok(mut f) = fs::File::open(&path) {
+                let mut hasher = Sha1::new();
+                let _ = std::io::copy(&mut f, &mut hasher);
+                let hash = format!("{:x}", hasher.finalize());
+                hash_to_file.insert(hash.clone(), clean_name);
+                hashes.push(hash);
             }
         }
     }

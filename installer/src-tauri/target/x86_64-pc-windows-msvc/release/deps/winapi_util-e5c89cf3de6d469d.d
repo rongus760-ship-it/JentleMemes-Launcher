@@ -1,0 +1,11 @@
+/home/rongus/jentlememes-launcher/installer/src-tauri/target/x86_64-pc-windows-msvc/release/deps/winapi_util-e5c89cf3de6d469d.d: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/console.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/file.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/sysinfo.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/win.rs
+
+/home/rongus/jentlememes-launcher/installer/src-tauri/target/x86_64-pc-windows-msvc/release/deps/libwinapi_util-e5c89cf3de6d469d.rlib: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/console.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/file.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/sysinfo.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/win.rs
+
+/home/rongus/jentlememes-launcher/installer/src-tauri/target/x86_64-pc-windows-msvc/release/deps/libwinapi_util-e5c89cf3de6d469d.rmeta: /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/lib.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/console.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/file.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/sysinfo.rs /home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/win.rs
+
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/lib.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/console.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/file.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/sysinfo.rs:
+/home/rongus/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winapi-util-0.1.11/src/win.rs:

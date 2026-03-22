@@ -26,8 +26,16 @@ fn get_arch() -> &'static str {
 fn find_java_binary(dir: &Path) -> Option<String> {
     if !dir.exists() { return None; }
 
-    let bin = dir.join("bin").join("java");
-    if bin.exists() { return Some(bin.to_string_lossy().to_string()); }
+    let candidates = if cfg!(windows) {
+        vec!["bin/java.exe", "bin/javaw.exe"]
+    } else {
+        vec!["bin/java"]
+    };
+
+    for candidate in &candidates {
+        let bin = dir.join(candidate);
+        if bin.exists() { return Some(bin.to_string_lossy().to_string()); }
+    }
 
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {

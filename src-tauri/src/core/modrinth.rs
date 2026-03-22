@@ -9,6 +9,7 @@ use crate::error::Result;
 pub async fn search(
     query: &str, project_type: &str, game_version: &str, 
     loader: &str, categories: Vec<String>, page: usize
+    , sort: &str
 ) -> Result<Value> {
     let limit = 20;
     let offset = page * limit;
@@ -19,9 +20,27 @@ pub async fn search(
     for cat in categories { facets.push(vec![format!("categories:{}", cat)]); }
 
     let client = Client::builder().user_agent("JentleMemesLauncher/1.0").build()?;
-    let mut req = client.get("https://api.modrinth.com/v2/search")
-        .query(&[("limit", limit.to_string()), ("offset", offset.to_string()), ("facets", serde_json::to_string(&facets)?)]);
-    if !query.is_empty() { req = req.query(&[("query", query)]); }
+    // Modrinth search: в ряде случаев без `index`/`query` возвращается пусто.
+    // Поэтому всегда задаём `query` (даже если пустая строка) и сортировку через `index`.
+    let index = match sort {
+        "relevance" => "relevance",
+        "popular" => "downloads",
+        "downloads" => "downloads",
+        "updated" => "updated",
+        // fallback
+        _ => "downloads",
+    };
+
+    let mut req = client
+        .get("https://api.modrinth.com/v2/search")
+        .query(&[
+            ("limit", limit.to_string()),
+            ("offset", offset.to_string()),
+            ("index", index.to_string()),
+            ("facets", serde_json::to_string(&facets)?),
+        ]);
+    // Важно: endpoint ожидает `query`. При отсутствии/пустом запросе возможен пустой ответ.
+    req = req.query(&[("query", query)]);
     
     let res = req.send().await?;
     Ok(res.json().await?)

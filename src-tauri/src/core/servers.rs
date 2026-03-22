@@ -83,3 +83,12 @@ pub fn collect_servers_from_dat() -> Vec<ServerFromDat> {
 
     by_ip.into_values().collect()
 }
+
+/// Collects servers from a specific instance's servers.dat only
+pub fn collect_servers_from_instance_dat(instance_id: &str) -> Vec<ServerFromDat> {
+    let path = crate::config::get_data_dir()
+        .join("instances")
+        .join(instance_id)
+        .join("servers.dat");
+    parse_servers_dat(&path)
+}

@@ -290,7 +290,12 @@ pub fn export_mrpack(id: &str, selected_folders: Vec<String>) -> Result<String> 
 }
 
 pub fn import() -> Result<String> {
-    if let Some(file_path) = FileDialog::new().add_filter("ZIP Archive", &["zip"]).pick_file() {
+    if let Some(file_path) = FileDialog::new()
+        .add_filter("Сборки", &["zip", "mrpack", "jentlepack"])
+        .add_filter("ZIP Archive", &["zip"])
+        .add_filter("Modrinth Pack", &["mrpack"])
+        .add_filter("JentlePack", &["jentlepack"])
+        .pick_file() {
         let id = format!("inst_{}", Uuid::new_v4().simple());
         let inst_dir = get_data_dir().join("instances").join(&id);
         fs::create_dir_all(&inst_dir)?;
