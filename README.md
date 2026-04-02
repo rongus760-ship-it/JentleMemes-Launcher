@@ -77,10 +77,6 @@ cd src-tauri/target/release
 tar -cvf - jentlememes-launcher | zstd -19 -o "JentleMemesLauncher_${VERSION}.tar.zst"
 ```
 
-Свой PKGBUILD + `makepkg -f` → загрузи получившийся `.pkg.tar.zst` в то же поле в админке (сервер сохранит расширение).
-
-**Админка на сайте:** поля `.deb` и Arch уже в репозитории сайта (`templates/admin.html`). Если на **jentlememes.ru** их нет — залей обновлённый шаблон на сервер в `/var/www/jentlememes/templates/` и перезапусти WSGI.
-
 ### Сборка Windows-установщика (из Linux)
 
 ```bash
