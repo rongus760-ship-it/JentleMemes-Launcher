@@ -1,16 +1,23 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   base: "./",
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    svelte({
+      onwarn(warning, defaultHandler) {
+        if (String(warning.code ?? "").startsWith("a11y")) return;
+        defaultHandler(warning);
+      },
+    }),
+    tailwindcss(),
+  ],
   clearScreen: false,
   server: {
     port: 1420,
     strictPort: true,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
   },

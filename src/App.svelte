@@ -1,21 +1,45 @@
 <script lang="ts">
-  import { onMount, afterUpdate } from "svelte";
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { convertFileSrc } from "@tauri-apps/api/core";
-  import { fade, fly, scale } from "svelte/transition";
-  import { quintOut } from "svelte/easing";
+  import { fade, fly } from "svelte/transition";
   import Titlebar from "./Titlebar.svelte";
   import HomeTab from "./tabs/HomeTab.svelte";
   import NewsTab from "./tabs/NewsTab.svelte";
   import AccountTab from "./tabs/AccountTab.svelte";
   import SkinsTab from "./tabs/SkinsTab.svelte";
   import SettingsTab from "./tabs/SettingsTab.svelte";
+  import AdvancedSettingsTab from "./tabs/AdvancedSettingsTab.svelte";
   import DiscoverTab from "./tabs/DiscoverTab.svelte";
   import LibraryTab from "./tabs/LibraryTab.svelte";
-  import SkinHeadAvatar from "./components/SkinHeadAvatar.svelte";
-  import { applyTheme } from "./lib/themeApply";
+  import ChatTab from "./tabs/ChatTab.svelte";
+  import InternalBrowserModal from "./components/InternalBrowserModal.svelte";
+  import SplashScreen from "./SplashScreen.svelte";
+  import OnboardingWizard from "./OnboardingWizard.svelte";
+  import ChromeNavigation from "./components/ChromeNavigation.svelte";
+  import CommandPalette from "./components/CommandPalette.svelte";
+  import { registerCommands } from "./lib/commandRegistry";
+  import { openInternalBrowser } from "./lib/internalBrowser";
+  import {
+    applyTheme,
+    applyVisualPreset,
+    normalizeVisualPreset,
+    applyShellLayout,
+    normalizeShellLayout,
+  } from "./lib/themeApply";
+  import { resolveBackgroundImageSrc } from "./lib/localImageUrl";
+  import { initSettingsStore } from "./lib/settingsStore";
+  import { registerIngameOverlayHotkey } from "./lib/ingameOverlayHotkey";
   import type { LibraryTabProps } from "./lib/libraryTabTypes";
+  import {
+    migrateChromeLayout,
+    applyChromeDocumentAttrs,
+    toggleSidebarDensity,
+    sidebarStyleFromLayout,
+    type ChromeLayout,
+    type ModalPreset,
+    type DownloadCorner,
+  } from "./lib/chromeLayout";
   import {
     Home,
     Library,
@@ -25,16 +49,64 @@
     LoaderCircle,
     Info,
     Newspaper,
+    Sliders,
+    MessageCircle,
+    User,
+    Palette,
+    Package,
+    ExternalLink,
+    RefreshCw,
+    FolderOpen,
+    Monitor,
   } from "lucide-svelte";
 
-  const tabDefs = [
-    { id: "home", label: "Главная", Icon: Home },
-    { id: "news", label: "Новости", Icon: Newspaper },
-    { id: "library", label: "Сборки", Icon: Library },
-    { id: "skins", label: "Скины", Icon: Shirt },
-    { id: "discover", label: "Браузер", Icon: Compass },
-    { id: "settings", label: "Настройки", Icon: Settings },
-  ] as const;
+  let showAdvancedTab = false;
+  let showFriendsChatTab = false;
+  let jentlememesApiBaseUrl = "https://jentlememes.ru";
+  let chatProfileMcServer = false;
+  let reduceMotion = false;
+  let ingameOverlayEnabled = false;
+  let ingameOverlayHotkey = "Alt+Backquote";
+  let uiScale = 1.05;
+  let chromeLayout: ChromeLayout = "sidebar_left_expanded";
+  let modalPreset: ModalPreset = "minimal";
+  let downloadCorner: DownloadCorner = "bl";
+
+  $: dlCornerClass =
+    downloadCorner === "bl"
+      ? "bottom-6 left-6"
+      : downloadCorner === "br"
+        ? "bottom-6 right-6"
+        : downloadCorner === "tl"
+          ? "jm-dl-corner-tl"
+          : downloadCorner === "tr"
+            ? "jm-dl-corner-tr"
+            : "hidden";
+
+  /** Уведомления — тот же угол, что и виджет загрузки (если виджет скрыт — левый нижний). */
+  $: toastCornerClass =
+    downloadCorner === "hidden" ? "bottom-6 left-6" : dlCornerClass === "hidden" ? "bottom-6 left-6" : dlCornerClass;
+
+  $: primaryTabs = [
+    { id: "home" as const, label: "Главная", Icon: Home },
+    { id: "news" as const, label: "Новости", Icon: Newspaper },
+    { id: "library" as const, label: "Сборки", Icon: Library },
+    { id: "skins" as const, label: "Скины", Icon: Shirt },
+    { id: "discover" as const, label: "Браузер", Icon: Compass },
+    ...(showFriendsChatTab
+      ? [{ id: "chat" as const, label: "Чат", Icon: MessageCircle }]
+      : []),
+  ];
+
+  $: systemTabs = [
+    ...(showAdvancedTab
+      ? [{ id: "advanced" as const, label: "Расширенные", Icon: Sliders }]
+      : []),
+    { id: "settings" as const, label: "Настройки", Icon: Settings },
+  ];
+
+  $: if (!showAdvancedTab && activeTab === "advanced") activeTab = "settings";
+  $: if (!showFriendsChatTab && activeTab === "chat") activeTab = "settings";
 
   let activeTab = "home";
   let pendingInstanceId: string | undefined = undefined;
@@ -44,6 +116,14 @@
   let activeAvatar = "https://minotar.net/helm/Steve/32.png";
   /** Полная текстура (локальный скин / сессия) — рисуем только голову в SkinHeadAvatar */
   let activeAvatarHeadFromTexture = false;
+  /** Сбрасывает кеш текстуры после смены скина / профиля */
+  let avatarCacheBust = 0;
+
+  function withAvatarCacheBust(url: string): string {
+    if (!url || !/^https?:\/\//i.test(url)) return url;
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}_jmav=${avatarCacheBust}`;
+  }
 
   function inferAccType(acc: any): string {
     if (!acc) return "offline";
@@ -65,30 +145,29 @@
   let isHoveringDL = false;
   let toasts: { id: number; msg: string }[] = [];
   let bgPath = "";
+  let bgSrc = "";
+  let bgResolveSeq = 0;
+  /** 12…98: непрозрачность слоя темы поверх картинки (меньше — фон ярче). */
+  let bgDimPercent = 78;
+  /** 78…100: непрозрачность карточек/панелей при фоне.
+   *
+   * Эволюция: 40 → 60 → 78. При 60 % на ярких обоях плитки всё ещё просвечивали
+   * настолько, что текст читался плохо, а интерфейс выглядел «пустым». При 78 %
+   * плитки остаются ощутимо полупрозрачными (видно нижнюю картинку как лёгкое
+   * свечение), но сохраняют читаемость и каркас. Если нужен более сильный
+   * «стеклянный» эффект — это делается через `.jm-glass` (backdrop-filter),
+   * а не через alpha-канал. */
+  let uiPanelOpacityPercent = 96;
   let ready = false;
+  let splashMessage = "Загрузка лаунчера…";
+  const splashPhases = ["Настройки", "Onboarding", "Сессии", "Профиль"];
+  let splashPhaseIndex = 0;
+  let needsOnboarding = false;
+  let onboardingResolved = false;
   let updateInfo: any = null;
   let launcherUpdateDownloading = false;
   let launcherUpdateProgress = 0;
   let launcherUpdateProgressTimer: ReturnType<typeof setInterval> | null = null;
-
-  let navEl: HTMLElement | undefined;
-
-  let indicatorLeft = 0;
-  let indicatorWidth = 0;
-
-  function syncIndicator() {
-    if (!navEl) return;
-    if (activeTab === "account") {
-      indicatorLeft = 0;
-      indicatorWidth = 0;
-      return;
-    }
-    const btn = navEl.querySelector(`[data-tab="${activeTab}"]`) as HTMLElement | null;
-    if (btn) {
-      indicatorLeft = btn.offsetLeft;
-      indicatorWidth = btn.offsetWidth;
-    }
-  }
 
   function startLauncherUpdateProgressAnim() {
     launcherUpdateProgress = 6;
@@ -124,16 +203,129 @@
     }
   }
 
-  afterUpdate(() => {
-    syncIndicator();
-  });
+  async function applyIngameOverlayHotkey() {
+    await registerIngameOverlayHotkey(ingameOverlayEnabled, ingameOverlayHotkey);
+  }
+
+  function applyUiScale(scale: number) {
+    try {
+      document.documentElement.style.setProperty("--ui-scale", String(scale));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function persistChromeSettings() {
+    try {
+      const current: any = await invoke("load_settings");
+      await invoke("save_settings", {
+        settings: {
+          ...current,
+          chrome_layout: chromeLayout,
+          sidebar_style: sidebarStyleFromLayout(chromeLayout),
+        },
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function toggleSidebarStyle() {
+    const next = toggleSidebarDensity(chromeLayout);
+    if (next !== chromeLayout) {
+      chromeLayout = next;
+      void persistChromeSettings();
+    }
+  }
+
+  function setActiveTab(id: string) {
+    activeTab = id;
+  }
+
+  $: applyChromeDocumentAttrs(chromeLayout, modalPreset);
+
+  function syncWallpaperUiChrome(path: string, panelOp: number) {
+    try {
+      const root = document.documentElement;
+      if (!path.trim()) {
+        root.classList.remove("jm-wallpaper-ui");
+        root.style.removeProperty("--jm-panel-opacity");
+        return;
+      }
+      const op = Math.min(100, Math.max(78, panelOp)) / 100;
+      root.style.setProperty("--jm-panel-opacity", String(op));
+      root.classList.add("jm-wallpaper-ui");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  $: syncWallpaperUiChrome(bgPath, uiPanelOpacityPercent);
+
+  $: {
+    const seq = ++bgResolveSeq;
+    const p = bgPath;
+    if (!p) {
+      bgSrc = "";
+    } else {
+      resolveBackgroundImageSrc(p).then((s) => {
+        if (seq === bgResolveSeq) bgSrc = s;
+      });
+    }
+  }
 
   async function loadSettings() {
     try {
       const s: any = await invoke("load_settings");
+      showAdvancedTab = !!s.show_advanced_tab;
+      showFriendsChatTab = !!s.show_friends_chat_tab;
+      jentlememesApiBaseUrl = String(s.jentlememes_api_base_url || "https://jentlememes.ru").replace(
+        /\/$/,
+        "",
+      );
+      chatProfileMcServer = !!s.chat_profile_mc_server;
+      reduceMotion = !!s.reduce_motion;
+      ingameOverlayEnabled = !!s.ingame_overlay_enabled;
+      ingameOverlayHotkey =
+        String(s.ingame_overlay_hotkey || "Alt+Backquote").trim() || "Alt+Backquote";
+      const rawScale = typeof s.ui_scale === "number" ? s.ui_scale : parseFloat(s.ui_scale || "1.05");
+      uiScale = Number.isFinite(rawScale) ? Math.min(1.6, Math.max(0.85, rawScale)) : 1.05;
+      chromeLayout = migrateChromeLayout(s.chrome_layout, s.sidebar_style);
+      const mp = String(s.modal_preset || "minimal");
+      modalPreset = (["minimal", "glass", "dense", "sheet"].includes(mp) ? mp : "minimal") as ModalPreset;
+      const dc = String(s.download_corner || "bl");
+      downloadCorner = (["bl", "br", "tl", "tr", "hidden"].includes(dc) ? dc : "bl") as DownloadCorner;
+      applyUiScale(uiScale);
+      applyVisualPreset(normalizeVisualPreset(s.visual_preset));
+      applyShellLayout(normalizeShellLayout(s.shell_layout));
       const t = s.theme || "jentle-dark";
       bgPath = s.background || "";
+      const rawDim =
+        typeof s.background_dim_percent === "number"
+          ? s.background_dim_percent
+          : Number.parseInt(String(s.background_dim_percent ?? ""), 10);
+      bgDimPercent = Number.isFinite(rawDim)
+        ? Math.min(98, Math.max(12, Math.round(rawDim)))
+        : 78;
+      const rawPanel =
+        typeof s.ui_panel_opacity_percent === "number"
+          ? s.ui_panel_opacity_percent
+          : Number.parseInt(String(s.ui_panel_opacity_percent ?? ""), 10);
+      // Одноразовая миграция: старые дефолты были 60 / 82 / 92, а при них плитки на
+      // обоях реально просвечивают. Любое значение <88 трактуем как «из старого
+      // дефолта» и поднимаем до нового 96. Это не ломает пользователя, который
+      // намеренно поставил, например, 95 — мы не трогаем значения ≥88.
+      const panelResolved = Number.isFinite(rawPanel) ? Math.round(rawPanel) : 96;
+      const panelMigrated = panelResolved < 88 ? 96 : panelResolved;
+      uiPanelOpacityPercent = Math.min(100, Math.max(78, panelMigrated));
+      if (panelMigrated !== panelResolved) {
+        // Сохраняем миграцию в бэкенд, чтобы при следующем старте не переделывать.
+        invoke("patch_settings", {
+          delta: { ui_panel_opacity_percent: uiPanelOpacityPercent },
+        }).catch(() => {});
+      }
       await applyTheme(t, s.background || "");
+      await applyIngameOverlayHotkey();
     } catch {
       /* ignore */
     }
@@ -160,6 +352,23 @@
             activeAvatarHeadFromTexture = true;
             return;
           }
+          if (skin && skin.skin_type !== "local") {
+            const nick = String(skin.skin_data || skin.username || "").trim();
+            if (nick) {
+              try {
+                const raw: any = await invoke("resolve_skin_texture_by_username", {
+                  username: nick,
+                });
+                if (raw?.url) {
+                  activeAvatar = withAvatarCacheBust(String(raw.url));
+                  activeAvatarHeadFromTexture = true;
+                  return;
+                }
+              } catch {
+                /* ниже — сессия / helm */
+              }
+            }
+          }
         }
         const uuid = String(active.uuid || "").replace(/-/g, "");
         const t = inferAccType(active);
@@ -171,7 +380,7 @@
               username: String(active.username || "").trim(),
             });
             if (raw?.url) {
-              avatarUrl = String(raw.url);
+              avatarUrl = withAvatarCacheBust(String(raw.url));
               activeAvatarHeadFromTexture = true;
             }
           } catch {
@@ -189,7 +398,8 @@
 
   function pushToast(msg: string) {
     const id = Date.now();
-    toasts = [...toasts, { id, msg }];
+    const next = [{ id, msg }, ...toasts];
+    toasts = next.length > 3 ? next.slice(0, 3) : next;
     setTimeout(() => {
       toasts = toasts.filter((t) => t.id !== id);
     }, 3000);
@@ -216,21 +426,199 @@
     progress.total > 0 ? Math.round((progress.downloaded / progress.total) * 100) : 0;
   $: showDownload = progress.total > 0 && progress.downloaded < progress.total;
 
+  function registerAppCommands() {
+    return registerCommands([
+      {
+        id: "goto.home",
+        title: "Главная",
+        group: "Навигация",
+        icon: Home,
+        keywords: ["home", "dashboard", "главная"],
+        run: () => (activeTab = "home"),
+      },
+      {
+        id: "goto.library",
+        title: "Сборки",
+        group: "Навигация",
+        icon: Library,
+        keywords: ["library", "instances", "сборки"],
+        run: () => (activeTab = "library"),
+      },
+      {
+        id: "goto.discover",
+        title: "Обзор модпаков и модов",
+        group: "Навигация",
+        icon: Compass,
+        keywords: ["discover", "browse", "modrinth", "curseforge"],
+        run: () => (activeTab = "discover"),
+      },
+      {
+        id: "goto.skins",
+        title: "Скины",
+        group: "Навигация",
+        icon: Shirt,
+        run: () => (activeTab = "skins"),
+      },
+      {
+        id: "goto.news",
+        title: "Новости",
+        group: "Навигация",
+        icon: Newspaper,
+        run: () => (activeTab = "news"),
+      },
+      {
+        id: "goto.account",
+        title: "Аккаунт",
+        group: "Навигация",
+        icon: User,
+        run: () => (activeTab = "account"),
+      },
+      {
+        id: "goto.settings",
+        title: "Настройки",
+        group: "Навигация",
+        icon: Settings,
+        shortcut: "Ctrl+,",
+        run: () => (activeTab = "settings"),
+      },
+      {
+        id: "goto.appearance",
+        title: "Настройки оформления",
+        description: "Пресеты, тема, обои",
+        group: "Навигация",
+        icon: Palette,
+        run: () => {
+          activeTab = "settings";
+          setTimeout(() => {
+            const btn = document.querySelector<HTMLButtonElement>(
+              "[data-section='appearance']",
+            );
+            btn?.click();
+          }, 60);
+        },
+      },
+      {
+        id: "action.refresh-ms",
+        title: "Обновить сессии Microsoft",
+        group: "Действия",
+        icon: RefreshCw,
+        run: async () => {
+          try {
+            await invoke("refresh_microsoft_sessions_startup");
+            pushToast("Microsoft-сессии обновлены");
+          } catch (e) {
+            pushToast(`Ошибка: ${e}`);
+          }
+        },
+      },
+      {
+        id: "action.check-update",
+        title: "Проверить обновление лаунчера",
+        group: "Действия",
+        icon: Package,
+        run: async () => {
+          try {
+            const upd: any = await invoke("check_launcher_update");
+            if (upd?.available) {
+              updateInfo = upd;
+              pushToast(`Доступно обновление ${upd.latest}`);
+            } else {
+              pushToast("Вы используете актуальную версию");
+            }
+          } catch (e) {
+            pushToast(`Ошибка: ${e}`);
+          }
+        },
+      },
+      {
+        id: "action.open-data-dir",
+        title: "Открыть папку данных",
+        group: "Действия",
+        icon: FolderOpen,
+        run: async () => {
+          try {
+            await invoke("open_launcher_data_folder");
+          } catch (e) {
+            pushToast(`Ошибка: ${e}`);
+          }
+        },
+      },
+      {
+        id: "action.open-overlay",
+        title: "Открыть игровой оверлей",
+        group: "Действия",
+        icon: Monitor,
+        run: async () => {
+          if (!ingameOverlayEnabled) {
+            pushToast("Включите оверлей в Настройках → Расширенные");
+            return;
+          }
+          const { toggleIngameOverlay } = await import("./lib/ingameOverlayToggle");
+          await toggleIngameOverlay();
+        },
+      },
+      {
+        id: "action.open-site",
+        title: "Открыть сайт jentlememes.ru",
+        group: "Действия",
+        icon: ExternalLink,
+        run: async () => {
+          openInternalBrowser("https://jentlememes.ru/");
+        },
+      },
+    ]);
+  }
+
   onMount(() => {
+    const splashStart = performance.now();
+    void initSettingsStore();
+    const unregisterCommands = registerAppCommands();
     void (async () => {
+      splashPhaseIndex = 0;
+      splashMessage = "Применяем настройки…";
       await loadSettings();
+      try {
+        splashPhaseIndex = 1;
+        splashMessage = "Проверяем первый запуск…";
+        const pending = await invoke<boolean>("is_onboarding_pending");
+        needsOnboarding = !!pending;
+      } catch {
+        needsOnboarding = false;
+      }
+      onboardingResolved = true;
+      splashPhaseIndex = 2;
+      splashMessage = "Обновляем сессии…";
       try {
         await invoke("refresh_microsoft_sessions_startup");
       } catch {
         /* ignore */
       }
+      splashPhaseIndex = 3;
+      splashMessage = "Загружаем профиль…";
       await loadActiveAccount();
+      splashPhaseIndex = 4;
+      const elapsed = performance.now() - splashStart;
+      const minSplashMs = reduceMotion ? 0 : 650;
+      const wait = Math.max(0, minSplashMs - elapsed);
+      setTimeout(() => (ready = true), wait);
     })();
-    setTimeout(() => (ready = true), 100);
 
     const unsubs: Array<() => void> = [];
-    listen("profiles_updated", () => loadActiveAccount()).then((u) => unsubs.push(u));
-    listen("settings_updated", () => loadSettings()).then((u) => unsubs.push(u));
+    listen("profiles_updated", () => {
+      avatarCacheBust++;
+      void loadActiveAccount();
+    }).then((u) => unsubs.push(u));
+    listen("settings_updated", () => void loadSettings()).then((u) => unsubs.push(u));
+
+    let activeMsTimer: ReturnType<typeof setInterval> | null = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        if (!document.hasFocus()) return;
+      } catch {
+        /* some platforms */
+      }
+      void invoke("add_launcher_active_ms", { deltaMs: 60_000 }).catch(() => {});
+    }, 60_000);
 
     const onJmTheme = (e: Event) => {
       const d = (e as CustomEvent<{ theme?: string; bg?: string }>).detail;
@@ -239,7 +627,13 @@
     window.addEventListener("jm_theme", onJmTheme);
     listen<any>("download_progress", (e) => {
       const p = e.payload;
-      if (p.silent) return;
+      if (p.silent) {
+        if (!p.total && !p.downloaded) {
+          progress = { task_name: "", downloaded: 0, total: 0 };
+          busyInstanceId = null;
+        }
+        return;
+      }
       progress = p;
       if (p.instance_id) busyInstanceId = p.instance_id;
       if (p.total > 0 && p.downloaded >= p.total) {
@@ -250,171 +644,132 @@
     const handleToast = (e: Event) => pushToast((e as CustomEvent).detail);
     window.addEventListener("jm_toast", handleToast);
 
+    const handleOpenUrl = (e: Event) => {
+      const d = (e as CustomEvent<{ url?: string }>).detail;
+      const u = d?.url?.trim();
+      if (u) openInternalBrowser(u);
+    };
+    window.addEventListener("jm_open_url", handleOpenUrl);
+
     return () => {
+      import("@tauri-apps/plugin-global-shortcut")
+        .then((m) => m.unregisterAll())
+        .catch(() => {});
       unsubs.forEach((f) => f());
+      window.removeEventListener("jm_open_url", handleOpenUrl);
       window.removeEventListener("jm_toast", handleToast);
       window.removeEventListener("jm_theme", onJmTheme);
+      unregisterCommands();
+      if (activeMsTimer) clearInterval(activeMsTimer);
     };
   });
 </script>
 
 <div
-  class="jm-app-shell flex flex-col h-screen bg-jm-bg overflow-hidden font-sans rounded-xl border border-white/[0.08] shadow-2xl relative"
+  class="jm-app-shell flex flex-col h-screen overflow-hidden font-sans rounded-xl border border-[var(--border)] shadow-sm relative {reduceMotion
+    ? 'jm-reduce-motion'
+    : ''}"
+  class:bg-jm-bg={!bgPath}
   style:color="var(--text)"
 >
-  <Titlebar />
+  <Titlebar ingameOverlayEnabled={ingameOverlayEnabled} />
 
   {#if bgPath}
     <div class="absolute inset-0 z-0">
-      <img src={convertFileSrc(bgPath)} alt="" class="w-full h-full object-cover" />
-      <div class="absolute inset-0 bg-jm-bg/70 backdrop-blur-sm"></div>
+      <img src={bgSrc} alt="" class="w-full h-full object-cover" />
+      <div
+        class="absolute inset-0 bg-jm-bg pointer-events-none"
+        style:opacity={bgDimPercent / 100}
+        aria-hidden="true"
+      ></div>
     </div>
   {/if}
 
-  <div class="absolute inset-0 pointer-events-none overflow-hidden z-0 jm-ambient">
-    <div
-      class="jm-ambient-orb absolute -top-40 -left-40 w-[560px] h-[560px] bg-jm-accent/[0.075] rounded-full blur-[110px] spin-slow jm-breathe"
-    ></div>
-    <div
-      class="jm-ambient-orb-delayed absolute top-1/3 -right-32 w-[420px] h-[420px] bg-jm-accent-light/[0.055] rounded-full blur-[100px] spin-slow"
-      style:animation-duration="26s"
-    ></div>
-    <div
-      class="jm-ambient-orb-slow absolute -bottom-60 -right-40 w-[680px] h-[680px] bg-jm-accent/[0.045] rounded-full blur-[150px] spin-slow"
-      style:animation-direction="reverse"
-      style:animation-duration="32s"
-    ></div>
-    <div
-      class="absolute inset-0 opacity-[0.04] bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(var(--accent-rgb),0.5),transparent)]"
-    ></div>
-  </div>
+  <div class="flex flex-col flex-1 min-h-0 relative z-[1]">
+    {#if chromeLayout === "top_tabs"}
+      <ChromeNavigation
+        layout={chromeLayout}
+        activeTab={activeTab}
+        primaryTabs={primaryTabs}
+        systemTabs={systemTabs}
+        activeAccount={activeAccount}
+        activeAvatar={activeAvatar}
+        activeAvatarHeadFromTexture={activeAvatarHeadFromTexture}
+        onTab={setActiveTab}
+        onToggleDensity={toggleSidebarStyle}
+      />
+    {/if}
 
-  <header
-    in:fly={{ y: -12, duration: 400 }}
-    class="flex items-center justify-between px-3 md:px-6 py-2 glass border-b border-[var(--border)] shadow-lg z-[10050] shrink-0 gap-2 min-h-0 relative"
-  >
-    <div
-      class="text-lg md:text-xl font-bold text-jm-accent-light tracking-wide shrink-0 hidden sm:flex items-baseline"
-    >
-      JentleMemes
-    </div>
-
-    <nav
-      bind:this={navEl}
-      class="jm-nav-pill relative flex bg-black/35 p-1 rounded-full border border-[var(--border)] shrink min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden shadow-inner backdrop-blur-md"
-    >
-      <div
-        class="absolute top-1 bottom-1 bg-gradient-to-r from-jm-accent/25 to-jm-accent/10 border border-jm-accent/35 rounded-full z-0 transition-[left,width,opacity] duration-500 cubic-bezier(0.22,1,0.36,1) shadow-[0_0_24px_rgba(var(--accent-rgb),0.15)] {activeTab ===
-        'account'
-          ? 'opacity-0 pointer-events-none'
-          : 'opacity-100'}"
-        style:left="{indicatorLeft}px"
-        style:width="{indicatorWidth}px"
-      ></div>
-      {#each tabDefs as item (item.id)}
-        <button
-          type="button"
-          data-tab={item.id}
-          on:click={() => (activeTab = item.id)}
-          class="relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all duration-300 whitespace-nowrap text-xs md:text-sm shrink-0 jm-tap-scale {activeTab === item.id
-            ? 'text-jm-accent-light font-bold drop-shadow-[0_0_12px_rgba(var(--accent-rgb),0.35)]'
-            : 'hover:text-jm-accent-light'}"
-          style:color={activeTab === item.id ? undefined : "var(--text-secondary)"}
-        >
-          <svelte:component this={item.Icon} size={16} />
-          <span class="hidden lg:inline">{item.label}</span>
-        </button>
-      {/each}
-    </nav>
-
-    <button
-      type="button"
-      on:click={() => (activeTab = "account")}
-      class="flex items-center gap-2 px-2 py-1 pr-3 rounded-full border transition-all duration-300 shrink-0 jm-tap-scale backdrop-blur-sm {activeTab ===
-      'account'
-        ? 'border-jm-accent bg-jm-accent/15 shadow-[0_0_20px_rgba(var(--accent-rgb),0.2)]'
-        : 'border-[var(--border)] bg-black/35 hover:border-jm-accent/45 hover:bg-jm-accent/5'}"
-    >
-      {#if activeAvatarHeadFromTexture}
-        <SkinHeadAvatar
-          src={activeAvatar}
-          size={28}
-          alt="Аватар"
-          wrapperClass="rounded-full ring-2 ring-white/10 ring-offset-2 ring-offset-transparent"
-        />
-      {:else}
-        <img
-          src={activeAvatar}
-          alt="Avatar"
-          class="w-7 h-7 shrink-0 rounded-full object-cover ring-2 ring-white/10 ring-offset-2 ring-offset-transparent"
-          style:image-rendering="pixelated"
+    <div class="flex flex-1 min-h-0 min-w-0">
+      {#if chromeLayout.startsWith("sidebar")}
+        <ChromeNavigation
+          layout={chromeLayout}
+          activeTab={activeTab}
+          primaryTabs={primaryTabs}
+          systemTabs={systemTabs}
+          activeAccount={activeAccount}
+          activeAvatar={activeAvatar}
+          activeAvatarHeadFromTexture={activeAvatarHeadFromTexture}
+          onTab={setActiveTab}
+          onToggleDensity={toggleSidebarStyle}
         />
       {/if}
-      <div class="hidden sm:flex flex-col items-start overflow-hidden">
-        <span class="text-xs font-bold leading-tight truncate max-w-[100px] text-left"
-          >{activeAccount ? activeAccount.username : "Offline"}</span
-        >
-        <span class="text-[9px] leading-tight uppercase" style:color="var(--text-secondary)"
-          >{activeAccount ? activeAccount.acc_type : "..."}</span
-        >
-      </div>
-    </button>
-  </header>
 
-  {#if updateInfo}
-    <div class="mx-3 mt-1 overflow-hidden z-[10040] relative" transition:fade>
-      <div
-        class="p-3 rounded-xl border border-jm-accent/40 bg-jm-accent/10 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.25)] flex flex-col gap-2"
-      >
-        <div class="flex items-center gap-3 flex-wrap">
-          <span class="text-sm font-bold flex-1 min-w-[10rem]"
-            >Доступно обновление v{updateInfo.latest}</span
+
+    <!-- ═══ Right column: update banner + content ═══ -->
+    <div class="flex flex-col flex-1 min-w-0 min-h-0">
+      {#if updateInfo}
+        <div class="mx-3 mt-2 shrink-0 z-[10040] relative" transition:fade>
+          <div
+            class="p-3 rounded-lg border border-jm-accent/40 bg-jm-accent/10 flex flex-col gap-2"
           >
-          <button
-            type="button"
-            disabled={launcherUpdateDownloading}
-            on:click={() => {
-              pushToast("Загрузка обновления...");
-              void runLauncherUpdate();
-            }}
-            class="bg-jm-accent text-black px-4 py-1.5 rounded-lg font-bold text-sm disabled:opacity-50 shrink-0 transition-transform hover:scale-[1.02] active:scale-[0.98]"
-          >
-            {launcherUpdateDownloading ? "Загрузка…" : "Обновить"}
-          </button>
-          <button
-            type="button"
-            disabled={launcherUpdateDownloading}
-            on:click={() => (updateInfo = null)}
-            class="text-jm-accent hover:text-jm-accent-light text-sm disabled:opacity-40">✕</button
-          >
-        </div>
-        {#if launcherUpdateDownloading}
-          <div class="w-full">
-            <div
-              class="h-2 rounded-full bg-black/30 border border-white/10 overflow-hidden jm-progress-indeterminate"
-            >
-              <div
-                class="h-full rounded-full bg-gradient-to-r from-jm-accent to-jm-accent-light transition-[width] duration-300 ease-out"
-                style:width="{Math.round(launcherUpdateProgress)}%"
-              ></div>
+            <div class="flex items-center gap-3 flex-wrap">
+              <span class="text-sm font-bold flex-1 min-w-[10rem]"
+                >Доступно обновление v{updateInfo.latest}</span
+              >
+              <button
+                type="button"
+                disabled={launcherUpdateDownloading}
+                on:click={() => {
+                  pushToast("Загрузка обновления...");
+                  void runLauncherUpdate();
+                }}
+                class="bg-jm-accent text-black px-4 py-1.5 rounded-lg font-bold text-sm disabled:opacity-50 shrink-0 transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                {launcherUpdateDownloading ? "Загрузка…" : "Обновить"}
+              </button>
+              <button
+                type="button"
+                disabled={launcherUpdateDownloading}
+                on:click={() => (updateInfo = null)}
+                class="text-jm-accent hover:text-jm-accent-light text-sm disabled:opacity-40">✕</button
+              >
             </div>
-            <p class="text-[10px] mt-1 font-medium" style:color="var(--text-secondary)">
-              Скачивание и применение обновления…
-            </p>
+            {#if launcherUpdateDownloading}
+              <div class="w-full">
+                <div
+                  class="h-2 rounded-full bg-black/30 border border-white/10 overflow-hidden jm-progress-indeterminate"
+                >
+                  <div
+                    class="h-full rounded-full bg-gradient-to-r from-jm-accent to-jm-accent-light transition-[width] duration-300 ease-out"
+                    style:width="{Math.round(launcherUpdateProgress)}%"
+                  ></div>
+                </div>
+                <p class="text-[10px] mt-1 font-medium" style:color="var(--text-secondary)">
+                  Скачивание и применение обновления…
+                </p>
+              </div>
+            {/if}
           </div>
-        {/if}
-      </div>
-    </div>
-  {/if}
+        </div>
+      {/if}
 
-  <main
-    class="flex-grow relative overflow-hidden"
-    style:background="radial-gradient(ellipse at top, rgba(var(--accent-rgb),0.05) 0%, transparent 80%)"
-  >
+      <main class="flex-grow relative overflow-hidden min-h-0" class:bg-jm-bg={!bgPath}>
     {#key activeTab}
       <div
-        in:scale={{ duration: 280, start: 0.985, opacity: 0.75, easing: quintOut }}
-        class="absolute inset-0 overflow-hidden"
+        in:fade={{ duration: reduceMotion ? 0 : 100 }}
+        class="absolute inset-0 overflow-hidden jm-tab-panel"
+        class:hidden={showFriendsChatTab && activeTab === "chat"}
       >
         {#if activeTab === "news"}
           <NewsTab />
@@ -448,19 +803,61 @@
           <DiscoverTab />
         {:else if activeTab === "settings"}
           <SettingsTab />
+        {:else if activeTab === "advanced"}
+          <AdvancedSettingsTab />
         {:else if activeTab === "account"}
           <AccountTab />
         {/if}
       </div>
     {/key}
-  </main>
+    {#if showFriendsChatTab}
+      <div
+        class="absolute inset-0 flex flex-col min-h-0 overflow-hidden z-[2] {activeTab === 'chat'
+          ? 'pointer-events-auto'
+          : 'pointer-events-none'}"
+        class:hidden={activeTab !== "chat"}
+        aria-hidden={activeTab !== "chat"}
+      >
+        <ChatTab
+          apiBaseUrl={jentlememesApiBaseUrl}
+          chatProfileMcServer={chatProfileMcServer}
+          chatChromeVisible={activeTab === "chat"}
+          onNavigateLibraryWithServer={(instanceId, serverIp) => {
+            pendingInstanceId = instanceId;
+            pendingServerIp = serverIp;
+            pendingWorldName = undefined;
+            activeTab = "library";
+          }}
+          onOpenLibrary={() => {
+            activeTab = "library";
+          }}
+        />
+      </div>
+    {/if}
+      </main>
+    </div>
+  </div>
+    {#if chromeLayout === "bottom_tabs"}
+      <ChromeNavigation
+        layout={chromeLayout}
+        activeTab={activeTab}
+        primaryTabs={primaryTabs}
+        systemTabs={systemTabs}
+        activeAccount={activeAccount}
+        activeAvatar={activeAvatar}
+        activeAvatarHeadFromTexture={activeAvatarHeadFromTexture}
+        onTab={setActiveTab}
+        onToggleDensity={toggleSidebarStyle}
+      />
+    {/if}
+  </div>
 
-  {#if showDownload}
+  {#if showDownload && downloadCorner !== "hidden"}
     <div class="absolute inset-0 pointer-events-none z-[10058]" aria-hidden="true">
       <div
-        class="absolute bottom-6 left-6 pointer-events-auto glass border border-jm-accent shadow-[0_10px_30px_rgba(var(--accent-rgb),0.2)] rounded-full flex items-center transition-all duration-300 overflow-hidden {isHoveringDL
-          ? 'w-80 p-3 rounded-2xl'
-          : 'w-14 h-14 justify-center cursor-pointer glow-pulse'}"
+        class="absolute pointer-events-auto border border-jm-accent/50 bg-[var(--card)] rounded-full flex items-center transition-all duration-200 overflow-hidden {dlCornerClass} {isHoveringDL
+          ? 'w-80 p-3 rounded-xl'
+          : 'w-14 h-14 justify-center cursor-pointer'}"
         on:mouseenter={() => (isHoveringDL = true)}
         on:mouseleave={() => (isHoveringDL = false)}
         role="presentation"
@@ -513,32 +910,39 @@
     </div>
   {/if}
 
-  <div class="absolute bottom-6 right-6 z-[10058] flex flex-col gap-2">
+  <div
+    class="absolute z-[10058] flex flex-col-reverse gap-2 max-h-[min(40vh,14rem)] overflow-y-auto overflow-x-hidden pointer-events-auto custom-scrollbar {toastCornerClass}"
+  >
     {#each toasts as t (t.id)}
       <div
-        in:fly={{ x: 40, duration: 280, opacity: 0 }}
-        out:fly={{ x: 48, duration: 220, opacity: 0 }}
-        class="glass border-l-4 border-jm-accent p-4 rounded-xl shadow-2xl flex items-center gap-3 jm-toast-glow backdrop-blur-xl"
+        in:fly={{ x: -40, duration: 280, opacity: 0 }}
+        out:fly={{ x: -48, duration: 220, opacity: 0 }}
+        class="border border-[var(--border)] border-l-4 border-l-jm-accent p-3 rounded-lg flex items-center gap-3 bg-[var(--card)] jm-toast-glow"
       >
         <Info size={18} class="text-jm-accent" />
-        <span class="text-sm font-bold text-white">{t.msg}</span>
+        <span class="text-sm font-medium" style:color="var(--text)">{t.msg}</span>
       </div>
     {/each}
   </div>
 
+  <InternalBrowserModal />
+
+  <CommandPalette />
+
   {#if !ready}
-    <div
-      class="absolute inset-0 z-[99999] bg-jm-bg/95 backdrop-blur-md flex flex-col items-center justify-center gap-4"
-      out:fade={{ duration: 450 }}
-    >
-      <div
-        class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-jm-accent-light via-white to-jm-accent animate-pulse tracking-tight"
-      >
-        JentleMemes
-      </div>
-      <div class="h-1 w-32 rounded-full bg-jm-accent/30 overflow-hidden">
-        <div class="h-full w-1/2 rounded-full bg-jm-accent shimmer"></div>
-      </div>
-    </div>
+    <SplashScreen
+      message={splashMessage}
+      phases={splashPhases}
+      phaseIndex={splashPhaseIndex}
+    />
+  {/if}
+
+  {#if ready && onboardingResolved && needsOnboarding}
+    <OnboardingWizard
+      on:done={() => {
+        needsOnboarding = false;
+        void loadSettings();
+      }}
+    />
   {/if}
 </div>

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel | JentleMemes</title>
+    <link href="https://fonts.googleapis.com/css2?family=Strait&display=swap" rel="stylesheet">
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <style>
+        body { background: #0a0a0a; color: #fff; font-family: 'Strait', sans-serif; padding: 20px; margin: 0;}
+        .container { max-width: 1200px; margin: 0 auto; }
+        .box { background: #151515; padding: 25px; border-radius: 12px; border: 1px solid #333; margin-bottom: 25px; }
+        h1, h2, h3 { color: #22c55e; margin-bottom: 20px; font-weight: normal;}
+        input, select, textarea { width: 100%; padding: 12px; margin-bottom: 15px; background: #222; border: 1px solid #444; color: #fff; border-radius: 8px; box-sizing: border-box; font-family: 'Strait', sans-serif;}
+        .btn { background: #22c55e; color: #000; padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: inline-block;}
+        .btn:hover { background: #16a34a; }
+        .btn-danger { background: #ef4444; color: #fff; border: none; cursor: pointer; padding: 5px 10px; border-radius: 6px;}
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .toast { background: #22c55e; color: #000; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold;}
+        .toast.error { background: #ef4444; color: #fff; }
+        .checkbox-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; background: #222; padding: 15px; border-radius: 8px;}
+        .checkbox-group label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .checkbox-group input { width: 18px; height: 18px; margin: 0;}
+        .ql-toolbar { background: #e0e0e0; border-radius: 8px 8px 0 0; border: none !important; }
+        .ql-container { background: #fff; color: #000; border-radius: 0 0 8px 8px; font-size: 16px; border: none !important;}
+        #editor-container, #editor-container-rule { height: 250px; margin-bottom: 15px; }
+        .section-icon { display: inline-block; width: 20px; height: 20px; vertical-align: middle; margin-right: 8px; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <a href="/" class="btn" style="background: #333; color: white;">← Back to Site</a>
+            {% if perms['perm_servers'] %}<a href="/admin/files" class="btn" style="background: #3b82f6; color: white;"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>Global Files</a>{% endif %}
+        </div>
+        
+        <h1 style="color: #fff;">System Admin Panel</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}<div class="toast {% if category == 'error' %}error{% endif %}">{{ message }}</div>{% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        {% if perms['perm_launcher'] or perms['perm_admin'] %}
+        <div class="box" style="border-color: #a855f7; box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);">
+            <h3 style="color: #a855f7;"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 3 0 3 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-3 0-3"/></svg>Launcher Updates (API)</h3>
+            <p style="color: #aaa; font-size: 14px; margin-bottom: 15px;">Publish new launcher versions. SHA256 hashes are calculated automatically.</p>
+            
+            <form method="POST" enctype="multipart/form-data">
+                <div class="grid">
+                    <div><label>Version (e.g. 1.0.1)</label><input type="text" name="l_version" required></div>
+                    <div></div>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Changelog:</label>
+                    <textarea name="l_changelog" rows="4" placeholder="- Fixed bugs...&#10;- Added features..." required></textarea>
+                </div>
+                
+                <div class="grid">
+                    <div style="background: #1a1a1a; padding: 15px; border-left: 4px solid #8b5cf6; border-radius: 6px;">
+                        <label style="color: #8b5cf6; font-weight: bold;"><svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>Windows Setup (.exe installer)</label>
+                        <p style="color:#666;font-size:12px;margin:5px 0;">Standalone installer for first-time users</p>
+                        <input type="file" name="l_win_setup" accept=".exe" style="background: transparent; border: none; padding: 0; margin-top: 5px;">
+                    </div>
+                    
+                    <div style="background: #1a1a1a; padding: 15px; border-left: 4px solid #3b82f6; border-radius: 6px;">
+                        <label style="color: #3b82f6; font-weight: bold;"><svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Windows Launcher (.exe app)</label>
+                        <p style="color:#666;font-size:12px;margin:5px 0;">App binary for in-launcher auto-updates</p>
+                        <input type="file" name="l_win_file" accept=".exe" style="background: transparent; border: none; padding: 0; margin-top: 5px;">
+                    </div>
+                </div>
+                
+                <div style="background: #1a1a1a; padding: 15px; border-left: 4px solid #f59e0b; border-radius: 6px; margin-top: 15px;">
+                    <label style="color: #f59e0b; font-weight: bold;"><svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 000 20 14.5 14.5 0 000-20"/><path d="M2 12h20"/></svg>Linux Build (.AppImage)</label>
+                    <p style="color:#666;font-size:12px;margin:5px 0;">Serves as both installer and app</p>
+                    <input type="file" name="l_lin_file" accept=".AppImage,.tar.gz" style="background: transparent; border: none; padding: 0; margin-top: 5px;">
+                </div>
+                
+                <button type="submit" name="publish_launcher" class="btn" style="margin-top: 20px; width: 100%; background: #a855f7; color: white;">Publish Update</button>
+            </form>
+
+            <h4 style="margin-top: 25px; color: #a855f7;">Version History:</h4>
+            <div style="max-height: 200px; overflow-y: auto;">
+                {% for v in launcher_vers %}
+                    <div style="background: #222; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="color: #fff; font-size: 18px;">v{{ v.version }}</strong> <span style="font-size: 12px; color: #888;">({{ v.created_at }})</span><br>
+                            {% if v.win_setup_url %}<span style="font-size: 12px; color: #8b5cf6;">Setup: {{ (v.win_setup_size or 0) // 1024 }} KB</span>{% endif %}
+                            {% if v.win_url %}<span style="font-size: 12px; color: #3b82f6; margin-left: 10px;">App: {{ v.win_size // 1024 }} KB</span>{% endif %}
+                            {% if v.lin_url %}<span style="font-size: 12px; color: #f59e0b; margin-left: 10px;">Lin: {{ v.lin_size // 1024 }} KB</span>{% endif %}
+                        </div>
+                        <form method="POST" style="margin: 0;"><input type="hidden" name="version_id" value="{{ v.id }}"><button type="submit" name="delete_launcher_version" class="btn-danger">X</button></form>
+                    </div>
+                {% else %}
+                    <p style="color: #888; font-size: 14px;">No versions published yet.</p>
+                {% endfor %}
+            </div>
+
+            <hr style="border-color: #333; margin: 30px 0;">
+            <h3 style="color: #22d3ee;"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a2 2 0 01-2 2zm0 0a2 2 0 01-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8z"/></svg>Launcher News</h3>
+            <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="ln_id" id="ln_id" value="">
+                <input type="hidden" name="ln_existing_image" id="ln_existing_image" value="">
+                <div class="grid">
+                    <div>
+                        <label>Title</label>
+                        <input type="text" name="ln_title" id="ln_title" placeholder="News headline" required>
+                    </div>
+                    <div>
+                        <select name="ln_tag" id="ln_tag">
+                            <option value="announcement">Announcement</option>
+                            <option value="update">Update</option>
+                            <option value="event">Event</option>
+                            <option value="feature">Feature</option>
+                            <option value="bugfix">Bugfix</option>
+                        </select>
+                    </div>
+                </div>
+                <label>Body</label>
+                <textarea name="ln_body" id="ln_body" rows="4" placeholder="News content..." required></textarea>
+                <div class="grid">
+                    <div>
+                        <label>Image (upload)</label>
+                        <input type="file" name="ln_image_file" accept="image/*" style="background: transparent; border: none; padding: 0;">
+                    </div>
+                    <div>
+                        <label>OR Image URL</label>
+                        <input type="text" name="ln_image_url" id="ln_image_url" placeholder="https://...">
+                    </div>
+                </div>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 15px;">
+                    <input type="checkbox" name="ln_pinned" id="ln_pinned" value="1" style="width: 18px; height: 18px; margin: 0;"> Pin this news
+                </label>
+                <button type="submit" name="create_launcher_news" id="ln_submit_btn" class="btn" style="background: #22d3ee; color: #000;">Publish News</button>
+                <button type="button" class="btn" style="background: #555; color: white; display: none;" id="ln_cancel_btn" onclick="cancelLnEdit()">Cancel</button>
+            </form>
+
+            <div style="max-height: 250px; overflow-y: auto; margin-top: 20px;">
+                {% for n in launcher_news %}
+                <div style="background: #222; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>{{ n.title }}</strong>
+                        {% if n.pinned %}<span style="font-size: 10px; background: #22d3ee; color: #000; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">PINNED</span>{% endif %}
+                        <br><span style="font-size: 12px; color: #888;">{{ n.tag }} · {{ n.created_at }}</span>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn" style="background: #3b82f6; color: white; padding: 4px 8px; font-size: 12px; border: none; cursor: pointer; border-radius: 4px;" onclick="editLn({{ n.id }}, '{{ n.title | replace("'", "\\'") }}', `{{ n.body | replace('`', '\\`') }}`, '{{ n.image or '' }}', '{{ n.tag }}', {{ n.pinned }})">Edit</button>
+                        <form method="POST" style="margin: 0;"><input type="hidden" name="ln_id" value="{{ n.id }}"><button type="submit" name="delete_launcher_news" class="btn-danger">X</button></form>
+                    </div>
+                </div>
+                {% else %}
+                <p style="color: #888; font-size: 14px;">No launcher news yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="grid">
+            <div class="box">
+                <h3><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>Social Links</h3>
+                <form method="POST">
+                    <label>Discord</label><input type="text" name="social_discord" value="{{ settings.social_discord }}">
+                    <label>Telegram</label><input type="text" name="social_tg" value="{{ settings.social_tg }}">
+                    <label>VK</label><input type="text" name="social_vk" value="{{ settings.social_vk }}">
+                    <button type="submit" name="save_socials" class="btn">Save Socials</button>
+                </form>
+            </div>
+            <div class="box">
+                <h3><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Header Version Text</h3>
+                <form method="POST">
+                    <input type="text" name="hero_version_text" value="{{ settings.hero_version_text }}" required>
+                    <button type="submit" name="save_hero_settings" class="btn">Save Text</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="box" style="border-color: #8b5cf6; box-shadow: 0 0 15px rgba(139, 92, 246, 0.15);">
+            <h3 style="color: #8b5cf6;"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Bot Configuration</h3>
+            <p style="color: #888; font-size: 13px; margin-bottom: 15px;">Discord & Telegram bot tokens and channel IDs for ticket notifications and auto-posting news.</p>
+            <form method="POST" class="grid">
+                <div><label>Discord Bot Token</label><input type="password" name="discord_token" value="{{ bot_settings.discord_token }}" placeholder="Bot token" autocomplete="off"></div>
+                <div><label>Telegram Bot Token</label><input type="password" name="tg_token" value="{{ bot_settings.tg_token }}" placeholder="Token from @BotFather" autocomplete="off"></div>
+                <div><label>Discord Guild ID</label><input type="text" name="guild_id" value="{{ bot_settings.guild_id }}" placeholder="e.g. 123456789012345678"></div>
+                <div><label>Ticket Channel ID</label><input type="text" name="ticket_channel_id" value="{{ bot_settings.ticket_channel_id }}" placeholder="Channel for ticket alerts"></div>
+                <div style="grid-column: 1 / -1;"><label>News Channel ID</label><input type="text" name="news_channel_id" value="{{ bot_settings.news_channel_id }}" placeholder="Channel for auto-posting news"></div>
+                <button type="submit" name="save_bot_settings" class="btn" style="grid-column: 1 / -1; background: #8b5cf6; color: white;">Save Bot Settings</button>
+            </form>
+        </div>
+
+        {% if perms['perm_servers'] %}
+        <div class="box">
+            <h3><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>Servers (Velocity / Crafty)</h3>
+            <form method="POST" class="grid">
+                <input type="text" name="srv_name" placeholder="Name (e.g. Hub)" required>
+                <input type="text" name="srv_uuid" placeholder="Crafty UUID" required>
+                <input type="text" name="srv_folder" placeholder="Folder Name/ID in /opt/minecraft" required>
+                <input type="text" name="srv_ip" placeholder="IP Address (e.g. play.ru)" required>
+                <label style="grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" name="srv_subserver" value="1" style="width: 18px; height: 18px; margin: 0;">
+                    Velocity Sub-server (Hide IP, fetch online via Crafty)
+                </label>
+                <button type="submit" name="add_server" class="btn" style="grid-column: 1 / -1;">Add Server</button>
+            </form>
+            <div style="margin-top: 20px;">
+                {% for srv in servers %}
+                    <div style="background: #222; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; border-left: 4px solid #22c55e;">
+                        <div>
+                            <h4 style="margin: 0;">{{ srv.name }} {% if srv.is_subserver %}<span style="font-size: 11px; background:#3b82f6; padding:2px 6px; border-radius:4px;">Sub-server</span>{% endif %}</h4>
+                            <p style="margin: 0; font-size: 12px; color: #888;">Folder: {{ srv.folder_id }} | UUID: {{ srv.crafty_uuid }}</p>
+                        </div>
+                        <div style="display: flex; gap: 5px;">
+                            <form method="POST" style="margin: 0; display: flex; gap: 5px;">
+                                <input type="hidden" name="server_id" value="{{ srv.id }}">
+                                <button type="submit" name="move_up" class="btn btn-sm">↑</button>
+                                <button type="submit" name="move_down" class="btn btn-sm">↓</button>
+                            </form>
+                            <a href="/server/{{ srv.crafty_uuid }}" class="btn btn-sm" style="background: #3b82f6; color: white; text-decoration: none;">Panel</a>
+                            <form method="POST" style="margin: 0;"><input type="hidden" name="server_id" value="{{ srv.id }}"><button type="submit" name="delete_server" class="btn-danger">X</button></form>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="grid">
+            <div class="box">
+                <h3><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>Game Modes</h3>
+                <form method="POST">
+                    <input type="text" name="mode_name" placeholder="Name" required>
+                    <input type="text" name="mode_version" placeholder="Version" required>
+                    <textarea name="mode_desc" placeholder="Description..." required></textarea>
+                    <button type="submit" name="add_mode" class="btn">Add Mode</button>
+                </form>
+                <div style="margin-top: 15px;">
+                    {% for m in modes %}<div style="background: #222; padding: 10px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between;"><span><b>{{ m.name }}</b></span><form method="POST" style="margin: 0;"><input type="hidden" name="mode_id" value="{{ m.id }}"><button type="submit" name="delete_mode" class="btn-danger">X</button></form></div>{% endfor %}
+                </div>
+            </div>
+
+            <div class="box">
+                <h3><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>External Resources</h3>
+                <form method="POST">
+                    <input type="text" name="ext_title" placeholder="Title" required>
+                    <select name="ext_type" required><option value="embed">Embed Window</option><option value="button">Button Link</option></select>
+                    <input type="text" name="ext_url" placeholder="URL" required>
+                    <button type="submit" name="add_ext_link" class="btn">Add Resource</button>
+                </form>
+                <div style="margin-top: 15px;">
+                    {% for link in ext_links %}<div style="background: #222; padding: 10px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between;"><span>{{ link.title }}</span><form method="POST" style="margin: 0;"><input type="hidden" name="link_id" value="{{ link.id }}"><button type="submit" name="delete_ext_link" class="btn-danger">X</button></form></div>{% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="box">
+                <h3><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>Role Constructor</h3>
+                <form method="POST">
+                    <input type="text" name="role_name" placeholder="Role Name" required>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <label>Color:</label><input type="color" name="role_color" value="#22c55e" style="width: 50px; height: 40px; padding: 0;">
+                    </div>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" name="perm_admin" value="1"> Admin Panel Access</label>
+                        <label><input type="checkbox" name="perm_servers" value="1"> Manage Servers</label>
+                        <label><input type="checkbox" name="perm_tickets" value="1"> Answer Tickets</label>
+                        <label><input type="checkbox" name="perm_rules" value="1"> Edit Rules</label>
+                        <label><input type="checkbox" name="perm_posts" value="1"> Publish News</label>
+                        <label style="color: #a855f7; font-weight: bold;"><input type="checkbox" name="perm_launcher" value="1"> Manage Launcher</label>
+                    </div>
+                    <button type="submit" name="create_role" class="btn">Create Role</button>
+                </form>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px;">
+                    {% for r in roles %}
+                        <div style="background: #222; padding: 5px 10px; border-radius: 6px; border-left: 4px solid {{ r.color }}; display: flex; align-items: center; gap: 10px;">
+                            <span>{{ r.name }}</span>
+                            {% if r.name not in['founder', 'player'] %}
+                                <form method="POST" style="margin: 0;"><input type="hidden" name="role_id" value="{{ r.id }}"><button type="submit" name="delete_role" style="background: transparent; border: none; color: #ef4444; cursor: pointer; font-weight: bold;">X</button></form>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="box">
+                <h3><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Manage Players</h3>
+                <form method="POST" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #333;">
+                    <label>Change Role:</label>
+                    <select name="target_user">{% for u in users %}<option value="{{ u.username }}">{{ u.username }} ({{ u.role }})</option>{% endfor %}</select>
+                    <select name="new_role">{% for r in roles %}<option value="{{ r.name }}">{{ r.name }}</option>{% endfor %}</select>
+                    <button type="submit" name="change_role" class="btn">Update Role</button>
+                </form>
+                <form method="POST">
+                    <label style="color: #ef4444; font-weight: bold;">Reset Password:</label>
+                    <select name="target_user" required>{% for u in users %}<option value="{{ u.username }}">{{ u.username }}</option>{% endfor %}</select>
+                    <input type="password" name="new_password" placeholder="New Password" required>
+                    <button type="submit" name="reset_password" class="btn btn-danger">Force Reset</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="grid">
+            {% if perms['perm_posts'] %}
+            <div class="box" id="post_editor_box">
+                <h3 id="post_form_title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Publish News</h3>
+                <form method="POST" enctype="multipart/form-data" id="post_form">
+                    <input type="hidden" name="post_id" id="post_id" value="">
+                    <input type="hidden" name="existing_image_url" id="existing_image_url" value="">
+                    <input type="hidden" name="content" id="hidden_content">
+                    <select name="tag" id="post_tag" required><option value="New">New</option><option value="Update">Update</option><option value="Event">Event</option></select>
+                    <input type="text" name="title" id="post_title" placeholder="Headline" required>
+                    <input type="text" name="short_desc" id="post_short_desc" placeholder="Short description" required>
+                    <div id="editor-container"></div>
+                    <label style="color: #aaa; font-size: 14px;">Image (Upload):</label>
+                    <input type="file" name="image" accept="image/*" style="background: transparent; border: none; padding: 0;">
+                    <label style="color: #aaa; font-size: 14px;">OR Image URL:</label>
+                    <input type="text" name="image_url_link" id="post_image_url_link" placeholder="https://...">
+                    <button type="submit" name="create_post" id="post_submit_btn" class="btn">Publish</button>
+                    <button type="button" class="btn" style="background: #555; color: white; display: none;" id="post_cancel_btn" onclick="cancelEdit()">Cancel</button>
+                </form>
+                <div style="max-height: 200px; overflow-y: auto; margin-top: 20px;">
+                    {% for post in posts %}
+                        <div style="background: #222; padding: 10px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between;">
+                            <span>{{ post.title }}</span>
+                            <div style="display: flex; gap: 5px;">
+                                <div id="raw_content_{{ post.id }}" style="display: none;">{{ post.content }}</div>
+                                <button class="btn btn-sm" style="background: #3b82f6; color: white; border: none; cursor: pointer; border-radius: 4px;" onclick="editPost('{{ post.id }}', '{{ post.title | replace("'", "\\'") }}', '{{ post.short_desc | replace("'", "\\'") }}', '{{ post.image_url }}', '{{ post.tag }}')">Edit</button>
+                                <form method="POST" style="margin: 0;"><input type="hidden" name="post_id" value="{{ post.id }}"><button type="submit" name="delete_post" class="btn-danger">X</button></form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if perms['perm_rules'] %}
+            <div class="box" id="rule_editor_box">
+                <h3 id="rule_form_title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Rules Editor</h3>
+                <form method="POST" id="rule_form">
+                    <input type="hidden" name="rule_id" id="rule_id" value="">
+                    <input type="hidden" name="content" id="hidden_rule_content">
+                    <input type="text" name="category" id="rule_category" placeholder="Category (e.g. Discord)" required>
+                    <input type="text" name="title" id="rule_title" placeholder="Rule Title" required>
+                    <div id="editor-container-rule"></div>
+                    <button type="submit" name="add_rule" id="rule_submit_btn" class="btn">Save Rule</button>
+                    <button type="button" class="btn" style="background: #555; color: white; display: none;" id="rule_cancel_btn" onclick="cancelRuleEdit()">Cancel</button>
+                </form>
+                <div style="max-height: 200px; overflow-y: auto; margin-top: 20px;">
+                    {% for r in rules %}
+                        <div style="background: #222; padding: 10px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between;">
+                            <span><span style="color: #22c55e;">[{{ r.category }}]</span> {{ r.title }}</span>
+                            <div style="display: flex; gap: 5px;">
+                                <div id="raw_rule_{{ r.id }}" style="display: none;">{{ r.content }}</div>
+                                <button class="btn btn-sm" style="background: #3b82f6; color: white; border: none; cursor: pointer; border-radius: 4px;" onclick="editRule('{{ r.id }}', '{{ r.category }}', '{{ r.title }}')">Edit</button>
+                                <form method="POST" style="margin: 0;"><input type="hidden" name="rule_id" value="{{ r.id }}"><button type="submit" name="delete_rule" class="btn-danger">X</button></form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function editLn(id, title, body, image, tag, pinned) {
+            document.getElementById('ln_id').value = id;
+            document.getElementById('ln_title').value = title;
+            document.getElementById('ln_body').value = body;
+            document.getElementById('ln_existing_image').value = image;
+            document.getElementById('ln_image_url').value = image || '';
+            document.getElementById('ln_tag').value = tag;
+            document.getElementById('ln_pinned').checked = !!pinned;
+            document.getElementById('ln_submit_btn').name = 'edit_launcher_news';
+            document.getElementById('ln_submit_btn').innerText = 'Save Changes';
+            document.getElementById('ln_cancel_btn').style.display = 'inline-block';
+        }
+        function cancelLnEdit() {
+            document.getElementById('ln_id').value = '';
+            document.getElementById('ln_title').value = '';
+            document.getElementById('ln_body').value = '';
+            document.getElementById('ln_existing_image').value = '';
+            document.getElementById('ln_image_url').value = '';
+            document.getElementById('ln_pinned').checked = false;
+            document.getElementById('ln_submit_btn').name = 'create_launcher_news';
+            document.getElementById('ln_submit_btn').innerText = 'Publish News';
+            document.getElementById('ln_cancel_btn').style.display = 'none';
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            if(document.getElementById('editor-container')) {
+                var quill = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [[{'header':[1,2,3,false]}],['bold','italic','underline','strike'],[{'color':[]},{'background':[]}],[{'list':'ordered'},{'list':'bullet'}],['link','image','video'], ['clean']] } });
+                document.getElementById('post_form').onsubmit = function() { document.getElementById('hidden_content').value = quill.root.innerHTML; };
+                window.editPost = function(id, title, shortDesc, imageUrl, tag) {
+                    document.getElementById('post_id').value = id; document.getElementById('post_title').value = title; document.getElementById('post_short_desc').value = shortDesc; document.getElementById('existing_image_url').value = imageUrl;
+                    if(imageUrl && imageUrl !== 'None') document.getElementById('post_image_url_link').value = imageUrl;
+                    document.getElementById('post_tag').value = tag; 
+                    quill.root.innerHTML = document.getElementById('raw_content_' + id).innerHTML;
+                    document.getElementById('post_form_title').innerText = 'Edit News'; document.getElementById('post_submit_btn').innerText = 'Save Changes'; document.getElementById('post_submit_btn').name = 'edit_post'; document.getElementById('post_cancel_btn').style.display = 'inline-block';
+                    window.scrollTo({ top: document.getElementById('post_editor_box').offsetTop - 20, behavior: 'smooth' });
+                }
+                window.cancelEdit = function() {
+                    document.getElementById('post_form').reset(); quill.root.innerHTML = ''; document.getElementById('post_id').value = ''; document.getElementById('existing_image_url').value = '';
+                    document.getElementById('post_form_title').innerText = 'Publish News'; document.getElementById('post_submit_btn').innerText = 'Publish'; document.getElementById('post_submit_btn').name = 'create_post'; document.getElementById('post_cancel_btn').style.display = 'none';
+                }
+            }
+            if(document.getElementById('editor-container-rule')) {
+                var quillRule = new Quill('#editor-container-rule', { theme: 'snow', modules: { toolbar: [['bold','italic','underline','strike'],[{'list':'bullet'}], [{'color':[]}], ['clean']] } });
+                document.getElementById('rule_form').onsubmit = function() { document.getElementById('hidden_rule_content').value = quillRule.root.innerHTML; };
+                window.editRule = function(id, category, title) {
+                    document.getElementById('rule_id').value = id; document.getElementById('rule_category').value = category; document.getElementById('rule_title').value = title;
+                    quillRule.root.innerHTML = document.getElementById('raw_rule_' + id).innerHTML;
+                    document.getElementById('rule_form_title').innerText = 'Edit Rule'; document.getElementById('rule_submit_btn').innerText = 'Save Changes'; document.getElementById('rule_submit_btn').name = 'edit_rule'; document.getElementById('rule_cancel_btn').style.display = 'inline-block';
+                    window.scrollTo({ top: document.getElementById('rule_editor_box').offsetTop - 20, behavior: 'smooth' });
+                }
+                window.cancelRuleEdit = function() {
+                    document.getElementById('rule_form').reset(); quillRule.root.innerHTML = ''; document.getElementById('rule_id').value = '';
+                    document.getElementById('rule_form_title').innerText = 'Rules Editor'; document.getElementById('rule_submit_btn').innerText = 'Save Rule'; document.getElementById('rule_submit_btn').name = 'add_rule'; document.getElementById('rule_cancel_btn').style.display = 'none';
+                }
+            }
+        });
+    </script>
+</body>
+</html>

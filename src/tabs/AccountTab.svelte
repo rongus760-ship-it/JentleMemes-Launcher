@@ -2,9 +2,24 @@
   import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
-  import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-  import { User, Mail, Key, MonitorSmartphone, Trash2, CheckCircle2 } from "lucide-svelte";
+  import {
+    User,
+    Mail,
+    Key,
+    MonitorSmartphone,
+    Trash2,
+    CheckCircle2,
+    Plus,
+    UserPlus,
+    Copy,
+    ExternalLink,
+    Loader2,
+  } from "lucide-svelte";
+  import { fade, fly } from "svelte/transition";
+  import { quintOut } from "svelte/easing";
   import SkinHeadAvatar from "../components/SkinHeadAvatar.svelte";
+  import Card from "../components/ui/Card.svelte";
+  import Button from "../components/ui/Button.svelte";
 
   let profiles: {
     accounts: any[];
@@ -12,20 +27,37 @@
     skin_presets: any[];
   } = { accounts: [], active_account_id: "", skin_presets: [] };
 
-  let authType: "offline" | "elyby" | "microsoft" = "offline";
+  let authType: "offline" | "elyby" | "microsoft" = "microsoft";
   let status = "";
+  let statusKind: "info" | "error" | "success" = "info";
   let offlineName = "";
   let elyEmail = "";
   let elyPass = "";
   let msCodeData: any = null;
   let msMiniPoll: ReturnType<typeof setInterval> | null = null;
   let profilesUnlisten: (() => void) | undefined;
-  /** Кэш src для списка аккаунтов (сессия Ely/MS или helm / локальный скин) */
   let avatarByAccountId: Record<string, string> = {};
-  /** Локальный PNG или URL сессии — рисуем голову, не целую развёртку */
   let avatarHeadFromTexture: Record<string, boolean> = {};
 
-  const authTabs: Array<"offline" | "elyby" | "microsoft"> = ["offline", "elyby", "microsoft"];
+  let busyAdd = false;
+
+  const authTabs: Array<{ id: "offline" | "elyby" | "microsoft"; label: string }> = [
+    { id: "microsoft", label: "Microsoft" },
+    { id: "elyby", label: "Ely.by" },
+    { id: "offline", label: "Пиратка" },
+  ];
+
+  function setStatus(msg: string, kind: "info" | "error" | "success" = "info") {
+    status = msg;
+    statusKind = kind;
+  }
+
+  function accountTypeLabel(t: string): string {
+    if (t === "microsoft") return "Microsoft";
+    if (t === "elyby") return "Ely.by";
+    if (t === "offline") return "Offline";
+    return t;
+  }
 
   function inferAccType(acc: any): string {
     if (acc.acc_type) return acc.acc_type;
@@ -76,7 +108,8 @@
 
   function selectAuthTab(t: "offline" | "elyby" | "microsoft") {
     authType = t;
-    status = "";
+    setStatus("");
+    msCodeData = null;
   }
 
   onMount(() => {
@@ -131,76 +164,75 @@
 
   async function handleOfflineLogin() {
     if (!offlineName.trim()) {
-      status = "Введите никнейм!";
+      setStatus("Введите никнейм", "error");
       return;
     }
-    status = "Создание оффлайн аккаунта...";
+    busyAdd = true;
+    setStatus("Создание оффлайн-аккаунта…");
     try {
       const acc = await invoke("login_offline", { username: offlineName });
       await handleAddAccount(acc);
-      status = "Аккаунт добавлен!";
+      setStatus("Аккаунт добавлен", "success");
       offlineName = "";
     } catch (e) {
-      status = `Ошибка: ${e}`;
+      setStatus(`Ошибка: ${e}`, "error");
+    } finally {
+      busyAdd = false;
     }
   }
 
   async function handleElybyLogin() {
     if (!elyEmail || !elyPass) {
-      status = "Введите email и пароль!";
+      setStatus("Введите email и пароль", "error");
       return;
     }
-    status = "Авторизация в Ely.by...";
+    busyAdd = true;
+    setStatus("Авторизация в Ely.by…");
     try {
       const acc = await invoke("login_elyby", { email: elyEmail, password: elyPass });
       await handleAddAccount(acc);
-      status = "Успешный вход через Ely.by!";
+      setStatus("Успешный вход через Ely.by", "success");
       elyEmail = "";
       elyPass = "";
     } catch (e) {
-      status = `Ошибка: ${e}`;
+      setStatus(`Ошибка: ${e}`, "error");
+    } finally {
+      busyAdd = false;
     }
   }
 
   async function handleMicrosoftInit() {
-    status = "Связь с серверами Microsoft...";
+    busyAdd = true;
+    setStatus("Связь с серверами Microsoft…");
     try {
       const data: any = await invoke("ms_init_device_code");
       msCodeData = data;
-      status = "Ожидание авторизации в браузере... Перейдите по ссылке и введите код!";
+      setStatus("Откройте ссылку и введите код. Ждём подтверждения…");
       const acc = await invoke("ms_login_poll", {
         deviceCode: data.device_code,
         interval: data.interval,
       });
       await handleAddAccount(acc);
-      status = "Успешный вход через Microsoft!";
+      setStatus("Успешный вход через Microsoft", "success");
       msCodeData = null;
     } catch (e) {
-      status = `Ошибка: ${e}`;
+      setStatus(`Ошибка: ${e}`, "error");
       msCodeData = null;
+    } finally {
+      busyAdd = false;
     }
   }
 
   async function handleMicrosoftMiniBrowser() {
     if (msMiniPoll) {
-      status = "Вход уже выполняется в мини-окне.";
+      setStatus("Вход уже выполняется в мини-окне");
       return;
     }
-    status = "Открывается мини-браузер… Войдите в Microsoft.";
+    busyAdd = true;
+    setStatus("Открывается мини-браузер…");
     try {
-      const url = (await invoke("ms_oauth_prepare_interactive")) as string;
-      const existing = await WebviewWindow.getByLabel("jentle-ms-oauth");
-      if (existing) await existing.close();
-      const win = new WebviewWindow("jentle-ms-oauth", {
-        url,
-        title: "Вход Microsoft / Xbox",
-        width: 520,
-        height: 820,
-        center: true,
-      });
-      win.once("tauri://error", (e) => {
-        status = `Ошибка окна: ${e}`;
-      });
+      // Бэкенд сам создаёт окно WebView (нужен перехват навигации для Microsoft nativeclient-redirect).
+      await invoke("ms_oauth_prepare_interactive");
       msMiniPoll = setInterval(async () => {
         try {
           const payload = (await invoke("ms_oauth_try_take_account")) as {
@@ -213,11 +245,12 @@
             clearInterval(msMiniPoll);
             msMiniPoll = null;
           }
+          busyAdd = false;
           if (payload.ok && payload.account) {
             await handleAddAccount(payload.account);
-            status = "Успешный вход через Microsoft!";
+            setStatus("Успешный вход через Microsoft", "success");
           } else {
-            status = `Ошибка: ${payload.error ?? "неизвестно"}`;
+            setStatus(`Ошибка: ${payload.error ?? "неизвестно"}`, "error");
           }
         } catch {
           /* ignore */
@@ -227,10 +260,22 @@
         if (msMiniPoll) {
           clearInterval(msMiniPoll);
           msMiniPoll = null;
+          busyAdd = false;
         }
       }, 900_000);
     } catch (e) {
-      status = `Ошибка: ${e}`;
+      setStatus(`Ошибка: ${e}`, "error");
+      busyAdd = false;
+    }
+  }
+
+  async function copyMsCode() {
+    if (!msCodeData?.user_code) return;
+    try {
+      await navigator.clipboard.writeText(msCodeData.user_code);
+      setStatus("Код скопирован", "success");
+    } catch {
+      /* ignore */
     }
   }
 
@@ -245,61 +290,93 @@
     }
     return url;
   }
+
+  $: activeAccount = profiles.accounts.find((a) => a.id === profiles.active_account_id);
 </script>
 
-<div class="flex flex-col md:flex-row gap-4 w-full max-w-6xl mx-auto items-start">
-  <div
-    class="w-full md:w-1/2 bg-jm-card p-4 rounded-2xl border border-white/10 shadow-xl card-hover-subtle jm-reveal backdrop-blur-sm"
-    style="animation-delay: 0.04s"
-  >
-    <h2 class="text-lg md:text-xl font-bold text-jm-accent-light mb-4 flex items-center gap-2">
-      <User size={18} /> Ваши аккаунты
-    </h2>
+<div class="jm-container flex flex-col md:flex-row gap-6 items-start pt-6">
+  <!-- Accounts list -->
+  <div class="w-full md:w-1/2 flex flex-col gap-4">
+    <div class="flex items-baseline justify-between px-1">
+      <div>
+        <h2 class="text-lg font-semibold">Аккаунты</h2>
+        <p class="text-[11px]" style:color="var(--text-secondary)">
+          {profiles.accounts.length === 0
+            ? "Нет добавленных аккаунтов"
+            : `Всего: ${profiles.accounts.length}${activeAccount ? ` · активный: ${activeAccount.username}` : ""}`}
+        </p>
+      </div>
+    </div>
+
     {#if profiles.accounts.length === 0}
-      <div class="text-[var(--text-secondary)] text-center py-10">Нет добавленных аккаунтов</div>
+      <Card padding="p-8">
+        <div class="flex flex-col items-center gap-3 text-center">
+          <div class="w-12 h-12 rounded-full border border-[var(--border)] flex items-center justify-center" style:background="var(--surface-1)">
+            <UserPlus size={20} class="text-[var(--text-secondary)]" strokeWidth={2} />
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold">Пока пусто</h3>
+            <p class="ui-hint mt-1">Добавьте первый аккаунт справа, чтобы запускать игру.</p>
+          </div>
+        </div>
+      </Card>
     {:else}
-      <div class="space-y-3">
+      <div class="flex flex-col gap-2">
         {#each profiles.accounts as acc (acc.id)}
           {@const active = profiles.active_account_id === acc.id}
+          {@const t = inferAccType(acc)}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             on:click={() => handleSetActive(acc.id)}
-            class="flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer {active
-              ? 'bg-jm-accent/20 border-jm-accent shadow-[0_0_15px_rgba(134,168,134,0.1)]'
-              : 'bg-black/40 border-white/5 hover:border-jm-accent/30'}"
+            class="ui-card ui-card-interactive flex items-center gap-3 p-3 pr-2"
+            class:is-active={active}
+            style:border-color={active ? "var(--accent)" : undefined}
+            style:background={active ? "var(--accent-softer)" : undefined}
           >
-            <div class="flex items-center gap-3 min-w-0">
+            <div class="shrink-0">
               {#if avatarHeadFromTexture[acc.id]}
                 <SkinHeadAvatar
                   src={avatarByAccountId[acc.id] ?? avatarUrl(acc)}
-                  size={40}
+                  size={44}
                   alt="Аватар"
-                  wrapperClass="rounded-lg"
+                  wrapperClass="rounded-[var(--radius-sm)]"
                 />
               {:else}
                 <img
                   src={avatarByAccountId[acc.id] ?? avatarUrl(acc)}
                   alt="avatar"
-                  class="w-10 h-10 rounded-lg object-cover shrink-0"
+                  class="w-11 h-11 rounded-[var(--radius-sm)] object-cover"
                   style:image-rendering="pixelated"
                 />
               {/if}
-              <div class="min-w-0">
-                <div class="font-bold text-sm text-white flex items-center gap-1.5 truncate">
-                  {acc.username}{#if active}<CheckCircle2 size={14} class="text-jm-accent shrink-0" />{/if}
-                </div>
-                <div class="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider">
-                  {acc.acc_type}
-                </div>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-sm font-semibold truncate">{acc.username}</span>
+                {#if active}
+                  <CheckCircle2 size={13} class="text-[var(--accent-light)] shrink-0" strokeWidth={2.5} />
+                {/if}
+              </div>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span class="ui-chip" class:ui-chip-accent={active}>
+                  {accountTypeLabel(t)}
+                </span>
+                {#if acc.uuid}
+                  <span class="text-[10px] font-mono truncate" style:color="var(--text-secondary)">
+                    {String(acc.uuid).slice(0, 8)}
+                  </span>
+                {/if}
               </div>
             </div>
             <button
               type="button"
               on:click|stopPropagation={() => void handleDelete(acc.id)}
-              class="p-1.5 text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
+              class="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
+              title="Удалить"
+              aria-label="Удалить аккаунт"
             >
-              <Trash2 size={16} />
+              <Trash2 size={14} strokeWidth={2.2} />
             </button>
           </div>
         {/each}
@@ -307,137 +384,188 @@
     {/if}
   </div>
 
-  <div
-    class="w-full md:w-1/2 bg-jm-card p-4 rounded-2xl border border-white/10 shadow-xl card-hover-subtle jm-reveal backdrop-blur-sm"
-    style="animation-delay: 0.1s"
-  >
-    <h2 class="text-lg md:text-xl font-bold text-jm-accent-light mb-4">Добавить аккаунт</h2>
-    <div class="flex gap-1 mb-4 bg-black/30 p-0.5 rounded-lg border border-white/5">
-      {#each authTabs as type (type)}
-        <button
-          type="button"
-          on:click={() => selectAuthTab(type)}
-          class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all {authType === type
-            ? 'bg-jm-accent text-black shadow-md'
-            : 'text-[var(--text-secondary)] hover:text-white'}"
-        >
-          {#if type === "offline"}Пиратка{:else if type === "elyby"}Ely.by{:else}Microsoft{/if}
-        </button>
-      {/each}
-    </div>
+  <!-- Add account panel -->
+  <div class="w-full md:w-1/2 flex flex-col gap-4">
+    <Card>
+      <svelte:fragment slot="header">
+        <h3 class="ui-heading flex items-center gap-2">
+          <Plus size={16} strokeWidth={2.2} /> Добавить аккаунт
+        </h3>
+        <p class="ui-hint mt-0.5">Выберите способ входа</p>
+      </svelte:fragment>
 
-    {#if authType === "offline"}
-      <div class="space-y-4">
-        <div>
-          <label class="text-sm text-[var(--text-secondary)] mb-1 block" for="jm-offline-name">Никнейм</label>
-          <div class="relative">
-            <User class="absolute left-3 top-3 text-[var(--text-secondary)]" size={18} />
-            <input
-              id="jm-offline-name"
-              type="text"
-              bind:value={offlineName}
-              placeholder="Steve"
-              class="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white focus:border-jm-accent outline-none"
-            />
-          </div>
-        </div>
-        <button
-          type="button"
-          on:click={() => void handleOfflineLogin()}
-          class="w-full bg-jm-accent hover:bg-jm-accent-light text-black font-bold py-3 rounded-xl transition-colors"
-        >
-          Добавить пиратку
-        </button>
-      </div>
-    {:else if authType === "elyby"}
-      <div class="space-y-4">
-        <div>
-          <label class="text-sm text-[var(--text-secondary)] mb-1 block" for="jm-ely-email">Email или Ник</label>
-          <div class="relative">
-            <Mail class="absolute left-3 top-3 text-[var(--text-secondary)]" size={18} />
-            <input
-              id="jm-ely-email"
-              type="text"
-              bind:value={elyEmail}
-              class="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white focus:border-jm-accent outline-none"
-            />
-          </div>
-        </div>
-        <div>
-          <label class="text-sm text-[var(--text-secondary)] mb-1 block" for="jm-ely-pass">Пароль</label>
-          <div class="relative">
-            <Key class="absolute left-3 top-3 text-[var(--text-secondary)]" size={18} />
-            <input
-              id="jm-ely-pass"
-              type="password"
-              bind:value={elyPass}
-              class="w-full bg-[var(--input-bg)] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white focus:border-jm-accent outline-none"
-            />
-          </div>
-        </div>
-        <button
-          type="button"
-          on:click={() => void handleElybyLogin()}
-          class="w-full bg-[#0078D7] hover:bg-[#1f8ce1] text-white font-bold py-3 rounded-xl transition-colors"
-        >
-          Войти через Ely.by
-        </button>
-      </div>
-    {:else}
-      <div class="space-y-4 text-center">
-        {#if !msCodeData}
-          <MonitorSmartphone class="mx-auto text-[var(--text-secondary)] mb-4" size={48} />
-          <p class="text-[var(--text-secondary)] text-sm mb-4">
-            Встроенное окно (рекомендуется) или код во внешнем браузере.
-          </p>
+      <div class="ui-seg w-full grid grid-cols-3 mb-4">
+        {#each authTabs as tab (tab.id)}
           <button
             type="button"
-            on:click={() => void handleMicrosoftMiniBrowser()}
-            class="w-full bg-[#107C10] hover:bg-[#149614] text-white font-bold py-3 rounded-xl transition-colors mb-3"
+            class="ui-seg-item"
+            class:is-active={authType === tab.id}
+            on:click={() => selectAuthTab(tab.id)}
           >
-            Войти в мини-браузере
+            {tab.label}
           </button>
-          <button
-            type="button"
-            on:click={() => void handleMicrosoftInit()}
-            class="w-full bg-white/10 hover:bg-white/15 text-white font-bold py-3 rounded-xl transition-colors border border-white/10"
-          >
-            Получить код (внешний браузер)
-          </button>
-          <p class="text-[10px] text-[var(--text-secondary)] mt-3 leading-snug text-left">
-            Если мини-браузер выдаёт ошибку redirect: в Azure (приложение) → Authentication →
-            добавьте платформу «Mobile and desktop» и URI вида
-            <span class="font-mono text-jm-accent/90">http://127.0.0.1</span>
-            (loopback).
-          </p>
-        {:else}
-          <div class="bg-black/40 p-6 rounded-xl border border-jm-accent/30">
-            <p class="text-sm text-[var(--text-secondary)] mb-2">1. Откройте эту ссылку:</p>
-            <a
-              href={msCodeData.verification_uri}
-              target="_blank"
-              rel="noreferrer"
-              class="text-jm-accent-light font-bold text-lg hover:underline block mb-6"
-              >{msCodeData.verification_uri}</a
-            >
-            <p class="text-sm text-[var(--text-secondary)] mb-2">2. Введите код:</p>
-            <div
-              class="bg-black text-white text-3xl font-mono tracking-widest py-4 rounded-lg border border-white/10 mb-4"
-            >
-              {msCodeData.user_code}
+        {/each}
+      </div>
+
+      {#if authType === "microsoft"}
+        <div in:fade={{ duration: 160 }}>
+          {#if !msCodeData}
+            <div class="flex flex-col gap-3">
+              <div class="flex items-start gap-3 p-3 rounded-[var(--radius)]" style:background="var(--surface-1)">
+                <MonitorSmartphone size={20} class="shrink-0 mt-0.5 text-[var(--accent-light)]" strokeWidth={2} />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium">Официальный вход</p>
+                  <p class="ui-hint mt-0.5">
+                    Аккаунт Microsoft / Xbox. Лицензия Minecraft подтверждается на серверах Mojang.
+                  </p>
+                </div>
+              </div>
+
+              <Button variant="primary" size="md" disabled={busyAdd} on:click={() => void handleMicrosoftMiniBrowser()}>
+                {#if busyAdd}
+                  <Loader2 size={14} class="animate-spin" strokeWidth={2.2} />
+                {/if}
+                Войти в мини-браузере
+              </Button>
+              <Button variant="subtle" size="md" disabled={busyAdd} on:click={() => void handleMicrosoftInit()}>
+                <ExternalLink size={13} strokeWidth={2.2} /> Получить код (внешний браузер)
+              </Button>
+              <p class="ui-hint leading-relaxed">
+                Если мини-браузер выдаёт ошибку redirect: в Azure → Authentication → добавьте платформу
+                «Mobile and desktop» с URI <code class="font-mono">http://127.0.0.1</code> (loopback).
+              </p>
             </div>
-            <p class="text-xs text-jm-accent animate-pulse">⏳ Ожидание авторизации...</p>
-          </div>
-        {/if}
-      </div>
-    {/if}
+          {:else}
+            <div
+              in:fly={{ y: 6, duration: 220, easing: quintOut }}
+              class="p-4 rounded-[var(--radius-lg)] border border-[var(--border-strong)] flex flex-col gap-3"
+              style:background="var(--surface-1)"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="ui-section-title">Ссылка для входа</span>
+                <a
+                  href={msCodeData.verification_uri}
+                  target="_blank"
+                  rel="noreferrer"
+                  class="ui-btn ui-btn-ghost ui-btn-sm"
+                >
+                  <ExternalLink size={12} strokeWidth={2.2} /> Открыть
+                </a>
+              </div>
+              <a
+                href={msCodeData.verification_uri}
+                target="_blank"
+                rel="noreferrer"
+                class="text-sm font-mono break-all hover:underline"
+                style:color="var(--accent-light)"
+              >
+                {msCodeData.verification_uri}
+              </a>
 
-    {#if status}
-      <div
-        class="mt-6 text-sm text-center text-jm-accent-light bg-black/40 px-4 py-3 rounded-lg border border-jm-accent/20"
-      >
-        {status}
-      </div>
-    {/if}
+              <div class="flex items-center justify-between gap-2 mt-2">
+                <span class="ui-section-title">Код</span>
+                <Button variant="ghost" size="sm" on:click={() => void copyMsCode()}>
+                  <Copy size={12} strokeWidth={2.2} /> Скопировать
+                </Button>
+              </div>
+              <div
+                class="px-4 py-3 rounded-[var(--radius)] text-2xl font-mono tracking-[0.4em] text-center border border-[var(--border)]"
+                style:background="var(--bg)"
+              >
+                {msCodeData.user_code}
+              </div>
+              <div class="flex items-center justify-center gap-2 text-xs" style:color="var(--accent-light)">
+                <Loader2 size={12} class="animate-spin" strokeWidth={2.2} />
+                <span>Ожидание подтверждения…</span>
+              </div>
+            </div>
+          {/if}
+        </div>
+      {:else if authType === "elyby"}
+        <div class="flex flex-col gap-3" in:fade={{ duration: 160 }}>
+          <div>
+            <label for="jm-ely-email" class="block text-sm font-medium mb-1">Email или ник</label>
+            <div class="relative">
+              <Mail class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-secondary)]" size={14} strokeWidth={2} />
+              <input
+                id="jm-ely-email"
+                type="text"
+                bind:value={elyEmail}
+                placeholder="you@example.com"
+                class="ui-input pl-9"
+                autocomplete="username"
+              />
+            </div>
+          </div>
+          <div>
+            <label for="jm-ely-pass" class="block text-sm font-medium mb-1">Пароль</label>
+            <div class="relative">
+              <Key class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-secondary)]" size={14} strokeWidth={2} />
+              <input
+                id="jm-ely-pass"
+                type="password"
+                bind:value={elyPass}
+                class="ui-input pl-9"
+                autocomplete="current-password"
+              />
+            </div>
+          </div>
+          <Button variant="primary" size="md" disabled={busyAdd} on:click={() => void handleElybyLogin()}>
+            {#if busyAdd}<Loader2 size={14} class="animate-spin" strokeWidth={2.2} />{/if}
+            Войти через Ely.by
+          </Button>
+        </div>
+      {:else}
+        <div class="flex flex-col gap-3" in:fade={{ duration: 160 }}>
+          <div>
+            <label for="jm-offline-name" class="block text-sm font-medium mb-1">Никнейм</label>
+            <div class="relative">
+              <User class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-secondary)]" size={14} strokeWidth={2} />
+              <input
+                id="jm-offline-name"
+                type="text"
+                bind:value={offlineName}
+                placeholder="Steve"
+                class="ui-input pl-9"
+                autocomplete="off"
+                on:keydown={(e) => e.key === "Enter" && !busyAdd && handleOfflineLogin()}
+              />
+            </div>
+            <p class="ui-hint mt-1">Без лицензии Mojang — не работает на серверах с античитом/онлайн-проверкой.</p>
+          </div>
+          <Button variant="primary" size="md" disabled={busyAdd} on:click={() => void handleOfflineLogin()}>
+            {#if busyAdd}<Loader2 size={14} class="animate-spin" strokeWidth={2.2} />{/if}
+            Добавить пиратку
+          </Button>
+        </div>
+      {/if}
+
+      {#if status}
+        <div
+          in:fade={{ duration: 160 }}
+          class="mt-4 text-xs px-3 py-2 rounded-[var(--radius)] border"
+          class:border-[var(--border)]={statusKind === "info"}
+          style:color={statusKind === "error" ? "#fca5a5" : statusKind === "success" ? "#86efac" : "var(--text-secondary)"}
+          style:background={statusKind === "error"
+            ? "color-mix(in srgb, #ef4444 12%, transparent)"
+            : statusKind === "success"
+            ? "color-mix(in srgb, #22c55e 12%, transparent)"
+            : "var(--surface-1)"}
+          style:border-color={statusKind === "error"
+            ? "color-mix(in srgb, #ef4444 35%, transparent)"
+            : statusKind === "success"
+            ? "color-mix(in srgb, #22c55e 35%, transparent)"
+            : "var(--border)"}
+        >
+          {status}
+        </div>
+      {/if}
+    </Card>
   </div>
 </div>
+
+<style>
+  :global(.ui-card.is-active) {
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+</style>

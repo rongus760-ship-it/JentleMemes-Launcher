@@ -1,0 +1,24 @@
+{
+  "entries": [
+    {
+      "minecraft": "b1.7.3",
+      "builds": ["v4", "manual"],
+      "zipDownloadUrls": {
+        "v4": [
+          "https://github.com/coffeenotfound/ModloaderFix-b1.7.3/releases/download/v1.0.0/ModLoader.Fix.b1.7.3-1.0.0.jar"
+        ]
+      }
+    },
+    {"minecraft": "b1.8.1", "builds": ["v4", "manual"]},
+    {"minecraft": "a1.2.6", "builds": ["manual"]},
+    {"minecraft": "1.0.0", "builds": ["manual"]},
+    {"minecraft": "1.1", "builds": ["manual"]},
+    {"minecraft": "1.2.5", "builds": ["manual"]},
+    {"minecraft": "1.3.2", "builds": ["manual"]},
+    {"minecraft": "1.4.7", "builds": ["manual"]},
+    {"minecraft": "1.5.2", "builds": ["manual"]},
+    {"minecraft": "1.6.4", "builds": ["manual"]}
+  ],
+  "zipNamePattern": "{minecraft}__{build}.zip",
+  "patchDir": "modloader_patches"
+}

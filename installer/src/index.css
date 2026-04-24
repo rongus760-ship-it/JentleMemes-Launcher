@@ -1,0 +1,231 @@
+@import "tailwindcss";
+
+@theme {
+  --color-jm-bg: #0b110b;
+  --color-jm-accent: #86a886;
+  --color-jm-accent-light: #b4dbb4;
+  --color-jm-card: rgba(34, 48, 34, 0.7);
+  --color-jm-card-solid: #1a261a;
+  --jm-accent-rgb: 134, 168, 134;
+}
+
+:root {
+  --bg: #0b110b;
+  --surface-1: #111811;
+  --surface-hover: #18201a;
+  --surface-input: #0d130d;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text: #eef3ee;
+  --text-secondary: rgba(238, 243, 238, 0.55);
+  --accent: #86a886;
+  --accent-light: #b4dbb4;
+  --accent-rgb: 134, 168, 134;
+  --danger: #e05a5a;
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-lg: 14px;
+}
+
+@layer base {
+  * {
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-jm-bg text-white overflow-hidden select-none cursor-default;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+  }
+}
+
+/* ═══ UI primitives (mirror основного лаунчера) ═══ */
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  height: 2.25rem;
+  padding-inline: 0.9rem;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  transition:
+    background-color 0.14s ease,
+    color 0.14s ease,
+    border-color 0.14s ease,
+    transform 0.12s ease;
+  cursor: pointer;
+  user-select: none;
+}
+.ui-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.ui-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ui-btn-primary {
+  background: var(--accent);
+  color: #0a110a;
+  border-color: color-mix(in srgb, var(--accent) 80%, black);
+  font-weight: 600;
+}
+.ui-btn-primary:hover:not(:disabled) {
+  background: var(--accent-light);
+}
+
+.ui-btn-subtle {
+  background: var(--surface-1);
+  color: var(--text);
+  border-color: var(--border);
+}
+.ui-btn-subtle:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.ui-btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.ui-btn-ghost:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+.ui-btn-danger {
+  background: color-mix(in srgb, var(--danger) 85%, transparent);
+  color: #fff;
+  border-color: color-mix(in srgb, var(--danger) 60%, black);
+  font-weight: 600;
+}
+.ui-btn-danger:hover:not(:disabled) {
+  background: var(--danger);
+}
+
+.ui-input {
+  width: 100%;
+  height: 2.5rem;
+  padding-inline: 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  transition: border-color 0.14s ease;
+}
+.ui-input:focus {
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+.ui-input.is-invalid {
+  border-color: color-mix(in srgb, var(--danger) 60%, transparent);
+}
+
+.ui-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ═══ Progress ═══ */
+
+@keyframes progress-stripe {
+  0% { background-position: 0 0; }
+  100% { background-position: 32px 0; }
+}
+.progress-striped {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.14) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.14) 75%,
+    transparent 75%
+  );
+  background-size: 32px 32px;
+  animation: progress-stripe 1.1s linear infinite;
+}
+
+@keyframes jm-indet {
+  0% { left: -35%; }
+  100% { left: 100%; }
+}
+.jm-indet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 35%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 70%, transparent),
+    transparent
+  );
+  animation: jm-indet 1.5s cubic-bezier(0.45, 0, 0.15, 1) infinite;
+}
+
+/* ═══ Ambient decoration (тихое свечение, без шимеров) ═══ */
+
+@keyframes jm-orb-float {
+  0%, 100% { transform: translate(-50%, 0) scale(1); opacity: 0.55; }
+  50% { transform: translate(-50%, -4%) scale(1.04); opacity: 0.8; }
+}
+.jm-orb {
+  animation: jm-orb-float 9s ease-in-out infinite;
+}
+
+@keyframes jm-tick-in {
+  0% { opacity: 0; transform: scale(0.82); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.jm-tick-in {
+  animation: jm-tick-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes jm-spark {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--sx, 20px)), calc(-50% + var(--sy, -20px))) scale(1); opacity: 0; }
+}
+.jm-titlebar-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  transition:
+    background-color 0.14s ease,
+    color 0.14s ease;
+  cursor: pointer;
+  border: 0;
+}
+.jm-titlebar-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.jm-titlebar-btn--close:hover {
+  background: #b0252c;
+  color: #fff;
+}
+
+.jm-spark-bit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--accent-light);
+  opacity: 0.8;
+  animation: jm-spark 0.9s ease-out forwards;
+}

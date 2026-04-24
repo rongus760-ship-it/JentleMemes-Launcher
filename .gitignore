@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-artifacts
 dist-ssr
 *.local
 
@@ -22,3 +23,43 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+TZ-LAUNCHER-API
+*.py
+
+# Rust / Tauri build artifacts
+target/
+**/target/
+
+# Local Tauri generated schemas (machine-specific)
+src-tauri/gen/schemas/
+installer/src-tauri/gen/schemas/
+
+# Release tarballs / packaging staging (published via GitHub Releases instead)
+jentlememes-launcher-*.tar.gz
+jentlememes-launcher-*.tar.zst
+jentlememes-launcher-*.tar.xz
+/dist/
+
+# Pre-built Windows installer stub binaries (built on demand by scripts/)
+installer-stub/*.exe
+installer-stub/payload/
+
+# Cursor private plans / scratch docs
+.cursor/plans/
+.cursor/FluxCore_v3.plan.md
+
+# Python caches / backends local data
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.bak
+
+# Local SQLite databases (do not publish user/dev data)
+*.db
+*.sqlite
+*.sqlite3
+
+# Misc local scratch
+structure.txt
+target

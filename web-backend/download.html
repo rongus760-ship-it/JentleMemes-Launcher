@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download Launcher | JentleMemes</title>
+    <link href="https://fonts.googleapis.com/css2?family=Strait&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg-color: #3b4d3b; --accent: #86A886; --accent-light: #B4DBB4; --card-bg: #223022; --text-main: #f0f0f0; --text-muted: #9ba89b; --border: rgba(255,255,255,0.08); }
+        body.theme-classic { --bg-color: #0d0d0d; --accent: #FBBF24; --accent-light: #f59e0b; --card-bg: #1a1a1a; --text-main: #ffffff; --text-muted: #a0a0a0; --border: #333; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Strait', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); line-height: 1.6; overflow-x: hidden; }
+
+        .bg-glow {
+            position: fixed; top: -30%; left: 50%; transform: translateX(-50%);
+            width: 800px; height: 800px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(134,168,134,0.12) 0%, transparent 70%);
+            z-index: -1; pointer-events: none;
+        }
+        body.theme-classic .bg-glow { background: radial-gradient(circle, rgba(251,191,36,0.08) 0%, transparent 70%); }
+
+        .back-btn {
+            position: fixed; top: 20px; left: 20px; z-index: 100;
+            color: var(--text-main); text-decoration: none; font-weight: bold;
+            background: var(--card-bg); padding: 10px 20px; border-radius: 25px;
+            border: 1px solid var(--border); transition: all 0.3s;
+            backdrop-filter: blur(12px);
+        }
+        .back-btn:hover { border-color: var(--accent); transform: translateX(-3px); }
+
+        @keyframes fadeUp { 0% { opacity: 0; transform: translateY(40px); } 100% { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+        .reveal { opacity: 0; transform: translateY(40px); transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+
+        .hero-section {
+            text-align: center; padding: 120px 20px 60px; max-width: 800px; margin: 0 auto;
+        }
+        .hero-section .icon {
+            width: 100px; height: 100px; border-radius: 24px; border: 3px solid var(--accent);
+            margin: 0 auto 30px; overflow: hidden;
+            box-shadow: 0 10px 40px rgba(134,168,134,0.3);
+            animation: fadeUp 0.8s 0.1s both, float 4s 1.5s ease-in-out infinite;
+        }
+        .hero-section .icon img { width: 100%; height: 100%; object-fit: cover; }
+        .hero-section h1 {
+            font-size: 52px; color: var(--accent-light); font-weight: normal; margin-bottom: 10px;
+            animation: fadeUp 0.8s 0.2s both;
+        }
+        .hero-section .subtitle {
+            font-size: 17px; color: var(--text-muted); max-width: 550px; margin: 0 auto 15px;
+            animation: fadeUp 0.8s 0.3s both;
+        }
+        .version-pill {
+            display: inline-block; background: var(--card-bg); border: 1px solid var(--border);
+            padding: 6px 18px; border-radius: 20px; font-size: 14px; color: var(--accent-light);
+            margin-bottom: 35px; animation: fadeUp 0.8s 0.4s both;
+        }
+
+        .dl-buttons {
+            display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;
+            animation: fadeUp 0.8s 0.5s both;
+        }
+        .btn-dl {
+            display: inline-flex; align-items: center; gap: 12px;
+            padding: 16px 36px; border-radius: 30px; text-decoration: none;
+            font-size: 18px; font-weight: bold; transition: all 0.3s;
+            box-shadow: 0 6px 25px rgba(0,0,0,0.2);
+        }
+        .btn-dl:hover { transform: translateY(-4px); }
+        .btn-dl.win {
+            background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff;
+        }
+        .btn-dl.win:hover { box-shadow: 0 10px 35px rgba(59,130,246,0.4); }
+        .btn-dl.linux {
+            background: linear-gradient(135deg, var(--accent), var(--accent-light)); color: #000;
+        }
+        .btn-dl.linux:hover { box-shadow: 0 10px 35px rgba(134,168,134,0.4); }
+        .btn-dl svg { flex-shrink: 0; }
+
+        .features-section {
+            max-width: 900px; margin: 60px auto; padding: 0 20px;
+        }
+        .features-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;
+        }
+        .feature-card {
+            background: var(--card-bg); border: 1px solid var(--border); padding: 28px;
+            border-radius: 16px; text-align: center;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .feature-card:hover { border-color: var(--accent); transform: translateY(-6px); box-shadow: 0 12px 35px rgba(0,0,0,0.3); }
+        .feature-card .emoji { font-size: 36px; margin-bottom: 12px; display: block; }
+        .feature-card h3 { color: var(--accent-light); font-size: 18px; margin-bottom: 8px; font-weight: normal; }
+        .feature-card p { color: var(--text-muted); font-size: 14px; }
+
+        .changelog-section {
+            max-width: 700px; margin: 40px auto 60px; padding: 0 20px;
+        }
+        .changelog-section h2 {
+            color: var(--accent-light); font-size: 24px; font-weight: normal; margin-bottom: 20px; text-align: center;
+        }
+        .changelog-box {
+            background: var(--card-bg); border: 1px solid var(--border); padding: 25px 30px;
+            border-radius: 16px; font-size: 15px; color: var(--text-muted); white-space: pre-wrap;
+            line-height: 1.8;
+        }
+
+        .sysreq-section {
+            max-width: 700px; margin: 0 auto 80px; padding: 0 20px;
+        }
+        .sysreq-section h2 {
+            color: var(--accent-light); font-size: 24px; font-weight: normal; margin-bottom: 20px; text-align: center;
+        }
+        .sysreq-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+        }
+        .sysreq-item {
+            background: var(--card-bg); border: 1px solid var(--border); padding: 16px 20px; border-radius: 12px;
+        }
+        .sysreq-item .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+        .sysreq-item .value { font-size: 16px; color: var(--text-main); }
+
+        @media (max-width: 600px) {
+            .hero-section h1 { font-size: 36px; }
+            .dl-buttons { flex-direction: column; align-items: center; }
+            .btn-dl { width: 85%; justify-content: center; }
+            .sysreq-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body class="theme-{{ theme }}">
+
+    <div class="bg-glow"></div>
+    <a href="/" class="back-btn">← {{ 'Home' if lang == 'en' else 'Главная' }}</a>
+
+    <div class="hero-section">
+        <div class="icon">
+            <img src="https://minotar.net/helm/Notch/100.png" alt="JentleMemes Launcher">
+        </div>
+        <h1>JentleMemes Launcher</h1>
+        <p class="subtitle">{{ 'The official launcher for playing on our modded servers with auto-updates, mods, custom themes, and more.' if lang == 'en' else 'Официальный лаунчер для игры на наших серверах с автообновлением, модами, темами и многим другим.' }}</p>
+
+        {% if version %}
+            <div class="version-pill">{{ 'Latest Release' if lang == 'en' else 'Последняя версия' }}: v{{ version.version }}</div>
+
+            <div class="dl-buttons">
+                {% if version.win_setup_url %}
+                <a href="{{ version.win_setup_url }}" class="btn-dl win">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Windows Setup
+                </a>
+                {% elif version.win_url %}
+                <a href="{{ version.win_url }}" class="btn-dl win">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+                    Windows
+                </a>
+                {% endif %}
+                {% if version.lin_url %}
+                <a href="{{ version.lin_url }}" class="btn-dl linux">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 000 20 14.5 14.5 0 000-20"/><path d="M2 12h20"/></svg>
+                    Linux
+                </a>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="version-pill" style="color: var(--text-muted);">{{ 'In Development' if lang == 'en' else 'В разработке' }}</div>
+            <p style="color: var(--text-muted); margin-top: 20px;">{{ 'The launcher is currently in development. Check back later!' if lang == 'en' else 'Лаунчер сейчас в разработке. Заходите позже!' }}</p>
+        {% endif %}
+    </div>
+
+    <div class="features-section reveal">
+        <div class="features-grid">
+            <div class="feature-card">
+                <span class="emoji"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+                <h3>{{ 'Auto Updates' if lang == 'en' else 'Автообновления' }}</h3>
+                <p>{{ 'Mods and launcher updates are downloaded automatically.' if lang == 'en' else 'Моды и обновления лаунчера скачиваются автоматически.' }}</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+                <h3>{{ 'Mod Manager' if lang == 'en' else 'Менеджер модов' }}</h3>
+                <p>{{ 'Install and manage mods from CurseForge and Modrinth.' if lang == 'en' else 'Устанавливайте и управляйте модами с CurseForge и Modrinth.' }}</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><path d="M17.5 10.5a2.5 2.5 0 100 5"/><circle cx="8.5" cy="14" r="2.5"/><path d="M2 21a8 8 0 0116 0"/><path d="M19.5 15.5a2.5 2.5 0 100 5"/></svg></span>
+                <h3>{{ 'Custom Themes' if lang == 'en' else 'Пользовательские темы' }}</h3>
+                <p>{{ 'Personalize with built-in themes or create your own.' if lang == 'en' else 'Настройте внешний вид встроенными или своими темами.' }}</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span>
+                <h3>{{ 'Built-in Java' if lang == 'en' else 'Встроенная Java' }}</h3>
+                <p>{{ 'Java is bundled — no manual installation needed.' if lang == 'en' else 'Java уже включена — ничего устанавливать не нужно.' }}</p>
+            </div>
+        </div>
+    </div>
+
+    {% if version %}
+    <div class="changelog-section reveal">
+        <h2>{{ 'What\'s New in v' if lang == 'en' else 'Что нового в v' }}{{ version.version }}</h2>
+        <div class="changelog-box">{{ version.changelog }}</div>
+    </div>
+    {% endif %}
+
+    <div class="sysreq-section reveal">
+        <h2>{{ 'System Requirements' if lang == 'en' else 'Системные требования' }}</h2>
+        <div class="sysreq-grid">
+            <div class="sysreq-item">
+                <div class="label">{{ 'OS' if lang == 'en' else 'ОС' }}</div>
+                <div class="value">Windows 10+ / Linux (glibc 2.31+)</div>
+            </div>
+            <div class="sysreq-item">
+                <div class="label">{{ 'RAM' if lang == 'en' else 'ОЗУ' }}</div>
+                <div class="value">4 GB+</div>
+            </div>
+            <div class="sysreq-item">
+                <div class="label">{{ 'Disk Space' if lang == 'en' else 'Диск' }}</div>
+                <div class="value">500 MB+</div>
+            </div>
+            <div class="sysreq-item">
+                <div class="label">{{ 'Network' if lang == 'en' else 'Сеть' }}</div>
+                <div class="value">{{ 'Broadband Internet' if lang == 'en' else 'Широкополосный интернет' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var observer = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) entry.target.classList.add('visible');
+            });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.reveal').forEach(function(el) { observer.observe(el); });
+    </script>
+</body>
+</html>

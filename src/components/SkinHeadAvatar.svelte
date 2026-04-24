@@ -13,8 +13,25 @@
   let canvas: HTMLCanvasElement;
   let loadGen = 0;
 
+  function corsModeForUrl(url: string): string | null {
+    const u = url.toLowerCase();
+    if (
+      u.includes("textures.minecraft.net") ||
+      u.includes("mojang.com") ||
+      u.includes("minecraft.net") ||
+      u.includes("crafthead.net") ||
+      u.includes("minotar.net")
+    ) {
+      return "anonymous";
+    }
+    return null;
+  }
+
   function paintOnto(c: HTMLCanvasElement, textureSrc: string, gen: number) {
     const img = new Image();
+    const cm =
+      /^https?:\/\//i.test(textureSrc) ? corsModeForUrl(textureSrc) : null;
+    if (cm) img.crossOrigin = cm;
     img.onload = () => {
       if (gen !== loadGen) return;
       const iw = img.naturalWidth;

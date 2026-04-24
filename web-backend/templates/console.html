@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Консоль сервера</title>
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; margin: 0; padding: 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box;}
+        #logs { flex-grow: 1; overflow-y: auto; background: #111; padding: 15px; border: 1px solid #333; white-space: pre-wrap; margin-bottom: 10px; font-size: 14px; line-height: 1.4;}
+        .input-box { display: flex; gap: 10px; }
+        input { flex-grow: 1; background: #222; color: #fff; border: 1px solid #444; padding: 10px; font-family: monospace; font-size: 16px; border-radius: 4px;}
+        button { background: #FBBF24; color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px;}
+        button:hover { background: #f59e0b; }
+        .error-text { color: #ef4444; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div style="margin-bottom: 15px; display: flex; align-items: center;">
+        <a href="/admin" style="color: #000; text-decoration: none; background: #FBBF24; padding: 5px 15px; border-radius: 4px; font-weight: bold; font-family: sans-serif;">← Назад в админку</a>
+        <span style="color: #fff; margin-left: 15px; font-family: sans-serif;">Консоль сервера: <b style="color: #FBBF24;">{{ server_id }}</b></span>
+    </div>
+    
+    <div id="logs">Подключение к Crafty Controller...</div>
+    
+    <div class="input-box">
+        <input type="text" id="cmd" placeholder="Введите команду (например, say Привет) и нажмите Enter" onkeypress="if(event.key === 'Enter') sendCommand()">
+        <button onclick="sendCommand()">Отправить</button>
+    </div>
+
+    <script>
+        const serverId = "{{ server_id }}";
+        const logsDiv = document.getElementById('logs');
+        let lastLogContent = "";
+
+        async function fetchLogs() {
+            try {
+                let res = await fetch('/api/crafty/logs/' + serverId);
+                let data = await res.json();
+                if (data.error) { logsDiv.innerHTML = `<span class="error-text">${data.error}<br>${data.details || ''}</span>`; return; }
+                if (data.data) {
+                    let logText = data.data.map(item => item.line !== undefined ? item.line : item).join('\n');
+                    if (lastLogContent !== logText) {
+                        logsDiv.innerHTML = logText;
+                        lastLogContent = logText;
+                        logsDiv.scrollTop = logsDiv.scrollHeight;
+                    }
+                }
+            } catch (e) { logsDiv.innerHTML = `<span class="error-text">Ошибка загрузки логов (JS): ${e}</span>`; }
+        }
+
+        async function sendCommand() {
+            let cmdInput = document.getElementById('cmd');
+            let cmd = cmdInput.value;
+            if(!cmd) return;
+            let formData = new FormData();
+            formData.append('command', cmd);
+            try {
+                await fetch('/api/crafty/command/' + serverId, { method: 'POST', body: formData });
+                cmdInput.value = '';
+                setTimeout(fetchLogs, 500);
+            } catch (e) { alert("Ошибка отправки команды: " + e); }
+        }
+
+        setInterval(fetchLogs, 2000);
+        fetchLogs();
+    </script>
+</body>
+</html>

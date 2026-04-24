@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "jentlememes-launcher",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "identifier": "com.jentleproject.jentlememes-launcher",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,14 +12,14 @@
   "app": {
     "windows": [
       {
-        "title": "jentlememes-launcher",
+        "title": "JentleMemes Launcher 2.0.0",
         "width": 800,
         "height": 600,
         "decorations": false
       }
     ],
     "security": {
-      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' http://asset.localhost https: data: blob:; connect-src 'self' https: http:; font-src 'self' data:; style-src 'self' 'unsafe-inline'",
+      "csp": "default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost https://asset.localhost https: data: blob:; media-src 'self' asset: http://asset.localhost https://asset.localhost blob: mediastream: data: https:; connect-src 'self' https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; frame-src https:; worker-src 'self' blob: https:;",
       "assetProtocol": {
         "enable": true,
         "scope": ["**/*"]
@@ -35,6 +35,19 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "depends": ["libgtk-3-0", "libwebkit2gtk-4.1-0", "libayatana-appindicator3-1"]
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      },
+      "rpm": {
+        "depends": ["gtk3", "webkit2gtk4.1", "libayatana-appindicator-gtk3"]
+      }
+    },
+    "category": "Game",
+    "shortDescription": "JentleMemes Minecraft Launcher"
   }
 }

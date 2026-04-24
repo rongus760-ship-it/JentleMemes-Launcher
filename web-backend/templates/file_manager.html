@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Файловый Менеджер | JentleMEMES</title>
+    <style>
+        body { background: #0a0a0a; color: #fff; font-family: sans-serif; padding: 20px; margin: 0;}
+        .container { max-width: 1000px; margin: 0 auto; background: #151515; padding: 20px; border-radius: 12px; border: 1px solid #333; }
+        .btn { background: #FBBF24; color: #000; padding: 8px 15px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-decoration: none; display: inline-block;}
+        .btn:hover { background: #f59e0b; }
+        .item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .item:hover { background: #222; }
+        .item a { color: #66c0f4; text-decoration: none; font-weight: bold; display: flex; align-items: center; gap: 10px;}
+        .item a:hover { text-decoration: underline; }
+        .icon { font-size: 20px; }
+        textarea { width: 100%; height: 500px; background: #111; color: #0f0; font-family: monospace; padding: 15px; border: 1px solid #444; border-radius: 8px; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+            <a href="/admin" class="btn">← В Админку</a>
+            <h2 style="margin: 0; color: #FBBF24;">Файловый Менеджер</h2>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+                <div style="background: {% if category == 'error' %}#ef4444{% else %}#22c55e{% endif %}; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-weight: bold;">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div style="background: #222; padding: 10px 15px; border-radius: 6px; margin-bottom: 20px; word-break: break-all;">
+            Текущий путь: <b>{{ current_path }}</b>
+        </div>
+
+        {% if edit_file %}
+            <h3 style="color: #66c0f4;">Редактирование: {{ edit_file.split('/')[-1] }}</h3>
+            <form method="POST">
+                <input type="hidden" name="filepath" value="{{ edit_file }}">
+                <textarea name="file_content">{{ file_content }}</textarea>
+                <div style="margin-top: 15px; display: flex; gap: 10px;">
+                    <button type="submit" class="btn" style="background: #22c55e; color: white;">Сохранить файл</button>
+                    <a href="/admin/files?path={{ current_path }}" class="btn" style="background: #555; color: white;">Отмена</a>
+                </div>
+            </form>
+        {% else %}
+            <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; background: #222; padding: 15px; border-radius: 8px;">
+                <form method="POST" enctype="multipart/form-data" style="display: flex; gap: 10px; align-items: center; width: 100%;">
+                    <span style="font-weight: bold;">Загрузить файл сюда:</span>
+                    <input type="file" name="upload_file" required style="color: #fff;">
+                    <button type="submit" class="btn">Загрузить</button>
+                </form>
+            </div>
+
+            <div style="border: 1px solid #333; border-radius: 8px; overflow: hidden;">
+                <div class="item" style="background: #1a1a1a;">
+                    <a href="/admin/files?path={{ parent_path }}" style="color: #FBBF24;"><span class="icon">📁</span> .. (На уровень выше)</a>
+                </div>
+                {% for item in items %}
+                    <div class="item">
+                        {% if item.is_dir %}
+                            <a href="/admin/files?path={{ item.path }}"><span class="icon">📁</span> {{ item.name }}</a>
+                        {% else %}
+                            <a href="/admin/files?path={{ current_path }}&edit={{ item.path }}" style="color: #e0e0e0;"><span class="icon">📄</span> {{ item.name }}</a>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>

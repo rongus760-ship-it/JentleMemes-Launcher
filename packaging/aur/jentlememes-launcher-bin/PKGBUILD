@@ -1,0 +1,28 @@
+# Дубликат логики каталога `jentlememes-launcher-bin/` в корне репозитория
+# (удобно держать копию рядом с packaging/aur/jentlememes-launcher).
+# См. scripts/package-linux-release-tarball.sh — сборка .tar.gz для GitHub Release.
+
+# Maintainer: Your Name <your.email@example.com>
+pkgname=jentlememes-launcher-bin
+pkgver=2.0.0
+pkgrel=1
+pkgdesc='JentleMemes Minecraft launcher (prebuilt binary from GitHub Release tarball)'
+arch=('x86_64')
+url='https://github.com/rongus760-ship-it/JentleMemes-Launcher'
+license=('Apache-2.0' 'MIT')
+depends=('gtk3' 'webkit2gtk-4.1' 'libayatana-appindicator' 'gdk-pixbuf2' 'openssl' 'hicolor-icon-theme')
+provides=('jentlememes-launcher')
+conflicts=('jentlememes-launcher')
+
+_tarball="jentlememes-launcher-${pkgver}-linux-x86_64.tar.gz"
+source=("${_tarball}::${url}/releases/download/v${pkgver}/${_tarball}")
+
+# После пересборки бинарника: npm run package:linux:tarball && cd packaging/aur/jentlememes-launcher-bin && updpkgsums
+sha256sums=('2730c1b33c20aacb12beeea29c5a4f52e56f6328f702032adc90a6414ed4d242')
+
+package() {
+  tar -xzf "${srcdir}/${_tarball}" -C "${srcdir}"
+  install -Dm755 "${srcdir}/jentlememes-launcher" "${pkgdir}/usr/bin/jentlememes-launcher"
+  install -Dm644 "${srcdir}/jentlememes-launcher.desktop" \
+    "${pkgdir}/usr/share/applications/jentlememes-launcher.desktop"
+}

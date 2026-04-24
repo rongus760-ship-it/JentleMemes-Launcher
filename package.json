@@ -1,36 +1,44 @@
 {
   "name": "jentlememes-launcher",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "build:launcher-news": "node scripts/build-launcher-news.mjs",
     "build:win": "npm run build && cd src-tauri && cargo build --release --target x86_64-pc-windows-gnu && cd .. && ./scripts/fetch-webview2-loader.sh",
+    "package:linux": "bash scripts/package-linux-artifacts.sh",
+    "package:linux:tarball": "bash scripts/package-linux-release-tarball.sh",
+    "tauri:build": "bash scripts/tauri-build.sh",
+    "tauri:build:linux": "bash scripts/tauri-build.sh",
+    "tauri:build:deb": "bash scripts/tauri-build.sh -- --bundles deb",
+    "tauri:build:appimage": "bash scripts/tauri-build.sh -- --bundles appimage",
     "preview": "vite preview",
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "@tailwindcss/vite": "^4.2.1",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-global-shortcut": "^2.3.1",
     "@tauri-apps/plugin-opener": "^2.5.3",
     "dompurify": "^3.3.3",
-    "framer-motion": "^12.35.2",
-    "lucide-react": "^0.577.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
+    "fuse.js": "^7.3.0",
+    "lucide-svelte": "^0.554.0",
+    "marked": "^17.0.5",
     "skinview3d": "^3.4.1",
+    "svelte": "^4.2.19",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.1.2",
     "@tauri-apps/cli": "^2",
     "@types/dompurify": "^3.0.5",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^4.6.0",
+    "svelte-check": "^3.8.6",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^5.4.11"
   }
 }

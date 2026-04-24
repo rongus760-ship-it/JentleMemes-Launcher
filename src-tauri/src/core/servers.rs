@@ -44,13 +44,24 @@ pub fn parse_servers_dat(path: &Path) -> Vec<ServerFromDat> {
             quartz_nbt::NbtTag::Compound(c) => c,
             _ => continue,
         };
-        let ip: String = comp.get::<_, &str>("ip").map(|s| s.to_string()).unwrap_or_default();
-        let name: String = comp.get::<_, &str>("name").map(|s| s.to_string()).unwrap_or_else(|_| ip.clone());
+        let ip: String = comp
+            .get::<_, &str>("ip")
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let name: String = comp
+            .get::<_, &str>("name")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|_| ip.clone());
         if ip.is_empty() {
             continue;
         }
-        let icon: Option<String> = comp.get::<_, &str>("icon").ok()
-            .and_then(|s| if s.is_empty() { None } else { Some(format!("data:image/png;base64,{}", s)) });
+        let icon: Option<String> = comp.get::<_, &str>("icon").ok().and_then(|s| {
+            if s.is_empty() {
+                None
+            } else {
+                Some(format!("data:image/png;base64,{}", s))
+            }
+        });
         out.push(ServerFromDat { name, ip, icon });
     }
     out
@@ -82,4 +93,13 @@ pub fn collect_servers_from_dat() -> Vec<ServerFromDat> {
     }
 
     by_ip.into_values().collect()
+}
+
+/// Collects servers from a specific instance's servers.dat only
+pub fn collect_servers_from_instance_dat(instance_id: &str) -> Vec<ServerFromDat> {
+    let path = crate::config::get_data_dir()
+        .join("instances")
+        .join(instance_id)
+        .join("servers.dat");
+    parse_servers_dat(&path)
 }

@@ -1,29 +1,1301 @@
 @import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "./styles/preset-legacy.css";
+@import "./styles/shell-layouts.css";
 
 @theme {
   --color-jm-bg: var(--bg);
   --color-jm-accent: var(--accent);
   --color-jm-accent-light: var(--accent-light);
   --color-jm-card: var(--card);
+  --color-jm-text: var(--text);
+  --color-jm-text-secondary: var(--text-secondary);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Трёхосевая архитектура токенов (v2.0):
+     Axis 1 — Visual Preset (structural): html[data-preset="..."]
+              задаёт radii, shadows, density, anim intensity
+     Axis 2 — Color Theme (palette):      .theme-*   (класс на html)
+              задаёт --bg, --accent, --text и т.п. Совместимо с v1.
+     Axis 3 — Custom / Auto-bg:           inline-стили на html
+              переопределяют отдельные цвета. Существующий механизм.
+   Дефолт: data-preset="blend" + .theme-jentle-dark.
+   Пресет "legacy" включает дополнительные декоративные эффекты
+   (glow/shimmer/pulse/gradient-animate), портированные из v1.1.0.
+   ═══════════════════════════════════════════════════════════════ */
+
 :root {
-  /* Jentle Dark (Default) */
+  --jm-chrome-stack: 2.5rem;
+
+  /* Глобальный масштаб интерфейса. Применяется через zoom на html,
+     а также множится на базовый шрифт на случай браузеров без zoom. */
+  --ui-scale: 1.05;
+
+  /* ═══ Typography (общие для всех пресетов) ═══ */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, "Cascadia Code", monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+
+  /* ═══ Motion (общие токены) ═══ */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 360ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ═══ Spacing scale (множится на --density) ═══ */
+  --density: 1;
+  --space-1: calc(4px * var(--density));
+  --space-2: calc(8px * var(--density));
+  --space-3: calc(12px * var(--density));
+  --space-4: calc(16px * var(--density));
+  --space-5: calc(20px * var(--density));
+  --space-6: calc(24px * var(--density));
+  --space-8: calc(32px * var(--density));
+  --space-10: calc(40px * var(--density));
+
+  /* ═══ Дефолтные structural-токены (преsetет "blend") ═══
+     Пресеты ниже через html[data-preset="..."] переопределяют их.
+     Если data-preset не установлен, действуют эти значения. */
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-xl: 18px;
+
+  --surface-1: color-mix(in srgb, var(--bg) 92%, var(--text) 4%);
+  --surface-2: var(--card);
+  --surface-hover: color-mix(in srgb, var(--accent) 8%, var(--card));
+  --border-strong: color-mix(in srgb, var(--accent) 35%, var(--border));
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
+  --accent-softer: color-mix(in srgb, var(--accent) 10%, transparent);
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.08), 0 4px 12px -8px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover: 0 1px 0 rgba(0, 0, 0, 0.12), 0 8px 24px -10px rgba(0, 0, 0, 0.35);
+  --shadow-modal: 0 10px 40px -12px rgba(0, 0, 0, 0.5), 0 1px 0 var(--border) inset;
+  --shadow-pill: 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent);
+
+  --focus-ring: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+
+  /* Surface-backdrop используется пресетами glass/blend для acrylic-эффекта.
+     default = no blur; glass переопределяет. */
+  --surface-backdrop: none;
+
+  /* Sidebar & titlebar высота (фиксированный sidebar shell) */
+  --sidebar-w-compact: 64px;
+  --sidebar-w-expanded: 236px;
+  --titlebar-h: 40px;
+
+  /* Preset orb opacity (amount of ambient glow behind sidebar) */
+  --orb-opacity: 0.08;
+  --orb-enabled: 1;
+
+  /* Background image usage (0 = плоский фон, 1 = используется картинка).
+     Пресеты могут зажимать это значение. */
+  --bg-image-intensity: 1;
+}
+
+/* ═══ Visual presets: Axis 1 ═══
+   blend (default): полу-прозрачные карточки, мягкие тени, средний density.
+   Совпадает с дизайном 1.x — пользователи без настроенного
+   пресета после миграции на 2.0 видят ровно то, что видели раньше.
+*/
+html[data-preset="blend"] {
+  --radius: 10px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius-xl: 18px;
+  --density: 1;
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.08), 0 4px 12px -8px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover: 0 1px 0 rgba(0, 0, 0, 0.12), 0 8px 24px -10px rgba(0, 0, 0, 0.35);
+  --surface-backdrop: none;
+  --orb-opacity: 0.08;
+  --orb-enabled: 1;
+}
+
+/* modrinth: воздушный, большие радиусы, меньше декора, больше отступы. */
+html[data-preset="modrinth"] {
+  --radius: 14px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-sm: 10px;
+  --radius-xl: 22px;
+  --density: 1.08;
+  --shadow-card: 0 2px 8px -2px rgba(0, 0, 0, 0.08), 0 6px 16px -6px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 4px 16px -4px rgba(0, 0, 0, 0.12), 0 12px 32px -8px rgba(0, 0, 0, 0.08);
+  --surface-backdrop: none;
+  --orb-opacity: 0.03;
+  --orb-enabled: 0;
+}
+
+/* discord: плотный, малые радиусы, плоские поверхности, компактные отступы. */
+html[data-preset="discord"] {
+  --radius: 6px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-sm: 4px;
+  --radius-xl: 10px;
+  --density: 0.88;
+  --shadow-card: none;
+  --shadow-card-hover: 0 0 0 1px var(--border-strong);
+  --surface-backdrop: none;
+  --orb-opacity: 0;
+  --orb-enabled: 0;
+}
+
+/* legacy (v1.1.0): полноценно декоративный — анимированные градиенты, pulse-glow,
+   radii как были в 1.1.0, активные ambient-orbs. Дополнительные правила в
+   src/styles/preset-legacy.css подключают нужные keyframes для .ui-card и т.п. */
+html[data-preset="legacy"] {
+  --radius: 10px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius-xl: 16px;
+  --density: 1;
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.18), 0 8px 24px -16px rgba(0, 0, 0, 0.45);
+  --shadow-card-hover: 0 0 20px rgba(var(--accent-rgb), 0.15), 0 8px 32px -12px rgba(0, 0, 0, 0.55);
+  --surface-backdrop: none;
+  --orb-opacity: 0.18;
+  --orb-enabled: 1;
+}
+
+/* glass: экспериментальный acrylic-вариант. Использует backdrop-filter.
+   ⚠ Дорогой на webkit2gtk — включаем только по явному выбору. */
+html[data-preset="glass"] {
+  --radius: 12px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-sm: 8px;
+  --radius-xl: 20px;
+  --density: 1.02;
+  --shadow-card: 0 4px 24px -8px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover: 0 8px 32px -8px rgba(0, 0, 0, 0.35);
+  --surface-backdrop: blur(18px) saturate(1.35);
+  --orb-opacity: 0.22;
+  --orb-enabled: 1;
+}
+
+/* ═══ Wallpaper mode ═══
+ * Когда выбран свой фон, панели становятся полупрозрачными, чтобы обоев было видно.
+ *
+ * КРИТИЧНО (cycle-free): используем `var(--card-raw)` / `--header-bg-raw` /
+ * `--input-bg-raw`, а НЕ `var(--card)` при переопределении `--card`. Иначе CSS
+ * обнаруживает self-reference, помечает свойство invalid-at-computed-value-time,
+ * и `background: var(--card)` у всех `.ui-card` резолвится в initial (transparent).
+ * Это и был баг «плитки насквозь просвечивают» на пресетных темах (`auto-bg`
+ * обходил баг, потому что там `--card` задаётся inline-стилем).
+ *
+ * Каждая тема обязана декларировать `--card-raw`, `--header-bg-raw`, `--input-bg-raw`
+ * в паре с `--card`, `--header-bg`, `--input-bg`.
+ */
+html.jm-wallpaper-ui {
+  --card: color-mix(in srgb, var(--card-raw) calc(var(--jm-panel-opacity, 1) * 100%), rgb(0 0 0 / 0));
+  --surface-1: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--bg) 92%, var(--text) 4%) calc(var(--jm-panel-opacity, 1) * 100%),
+    rgb(0 0 0 / 0)
+  );
+  --surface-hover: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--accent) 12%, var(--card-raw)) calc(var(--jm-panel-opacity, 1) * 100%),
+    rgb(0 0 0 / 0)
+  );
+  --header-bg: color-mix(in srgb, var(--header-bg-raw) calc(var(--jm-panel-opacity, 1) * 100%), rgb(0 0 0 / 0));
+  --input-bg: color-mix(in srgb, var(--input-bg-raw) calc(var(--jm-panel-opacity, 1) * 100%), rgb(0 0 0 / 0));
+  /* Каркас плиток: без этого на ярких обоях границы исчезают и UI выглядит «скудным».
+   * Тестировал на жёлтых/белых/розовых обоях — 0.22 всё ещё тонул, 0.34 держится. */
+  --border: rgba(255, 255, 255, 0.34);
+  --border-strong: color-mix(in srgb, var(--accent) 55%, rgba(255, 255, 255, 0.4));
+  /* Тень на плитках — физически отделяет карточку от фона, как в macOS/Win11. */
+  --shadow-1: 0 2px 10px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* Опциональный «frosted glass» для карточек: используется через `class="jm-glass"`.
+ * backdrop-filter дорогой на webkit2gtk, поэтому включаем только по запросу. */
+.jm-glass {
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+}
+
+html {
+  /* WebKit/Chromium поддерживают zoom нативно и корректно учитывают его
+     во всех measurement API, включая hit-testing. Это лучший способ
+     поднять весь интерфейс целиком без ручного перерасчёта каждого rem/px. */
+  zoom: var(--ui-scale, 1);
+}
+
+/*
+ * ВАЖНО: `--card-raw`, `--header-bg-raw`, `--input-bg-raw` — это «сырые» (solid)
+ * значения цветов темы. `html.jm-wallpaper-ui` блендит их с прозрачным чёрным и
+ * записывает результат в `--card` / `--header-bg` / `--input-bg`. Так мы избегаем
+ * CSS custom property self-reference cycle (который раньше ломал UI на пресетных
+ * темах в режиме обоев).
+ */
+:root, .theme-jentle-dark {
   --bg: #0b110b;
   --accent: #86A886;
   --accent-light: #B4DBB4;
-  --card: rgba(34, 48, 34, 0.7);
+  --card: #141a14;
+  --card-raw: #141a14;
+  --text: #f4f4f4;
+  --text-secondary: #9ca3af;
+  --accent-rgb: 134,168,134;
+  --input-bg: #0e140e;
+  --input-bg-raw: #0e140e;
+  --header-bg: #0b110b;
+  --header-bg-raw: #0b110b;
+  --border: rgba(255,255,255,0.08);
+}
+
+.theme-jentle-site {
+  --bg: #111111;
+  --accent: #d4a843;
+  --accent-light: #f0cc6e;
+  --card: #1a1812;
+  --card-raw: #1a1812;
+  --text: #e8e0d0;
+  --text-secondary: #8a8070;
+  --accent-rgb: 212,168,67;
+  --input-bg: #141210;
+  --input-bg-raw: #141210;
+  --header-bg: #0f0d0a;
+  --header-bg-raw: #0f0d0a;
+  --border: rgba(212,168,67,0.14);
+}
+
+.theme-purple-dark {
+  --bg: #0e0b15;
+  --accent: #9b6dd7;
+  --accent-light: #c9a0f0;
+  --card: #17121f;
+  --card-raw: #17121f;
+  --text: #e8e0f5;
+  --text-secondary: #8a7da0;
+  --accent-rgb: 155,109,215;
+  --input-bg: #120e1a;
+  --input-bg-raw: #120e1a;
+  --header-bg: #0a070f;
+  --header-bg-raw: #0a070f;
+  --border: rgba(155,109,215,0.14);
+}
+
+.theme-purple-light {
+  --bg: #f5f0fa;
+  --accent: #7c3aed;
+  --accent-light: #a78bfa;
+  --card: #ffffff;
+  --card-raw: #ffffff;
+  --text: #1e1033;
+  --text-secondary: #6b5a85;
+  --accent-rgb: 124,58,237;
+  --input-bg: #ffffff;
+  --input-bg-raw: #ffffff;
+  --header-bg: #f5f0fa;
+  --header-bg-raw: #f5f0fa;
+  --border: rgba(124,58,237,0.14);
+}
+
+.theme-red-dark {
+  --bg: #110b0b;
+  --accent: #d44343;
+  --accent-light: #f07070;
+  --card: #1c1212;
+  --card-raw: #1c1212;
+  --text: #f5e0e0;
+  --text-secondary: #a07a7a;
+  --accent-rgb: 212,67,67;
+  --input-bg: #160e0e;
+  --input-bg-raw: #160e0e;
+  --header-bg: #0a0505;
+  --header-bg-raw: #0a0505;
+  --border: rgba(212,67,67,0.14);
+}
+
+.theme-red-light {
+  --bg: #faf0f0;
+  --accent: #dc2626;
+  --accent-light: #f87171;
+  --card: #ffffff;
+  --card-raw: #ffffff;
+  --text: #331010;
+  --text-secondary: #856060;
+  --accent-rgb: 220,38,38;
+  --input-bg: #ffffff;
+  --input-bg-raw: #ffffff;
+  --header-bg: #faf0f0;
+  --header-bg-raw: #faf0f0;
+  --border: rgba(220,38,38,0.14);
+}
+
+.theme-light-gold {
+  --bg: #f8f5ee;
+  --accent: #b8860b;
+  --accent-light: #d4a843;
+  --card: #ffffff;
+  --card-raw: #ffffff;
+  --text: #2a2518;
+  --text-secondary: #7a7060;
+  --accent-rgb: 184,134,11;
+  --input-bg: #ffffff;
+  --input-bg-raw: #ffffff;
+  --header-bg: #f8f5ee;
+  --header-bg-raw: #f8f5ee;
+  --border: rgba(184,134,11,0.14);
 }
 
 .theme-furry {
-  /* Furry Theme (Pink/Purple) */
   --bg: #1a0b18;
   --accent: #ff7eb3;
   --accent-light: #ffb8d1;
-  --card: rgba(48, 20, 40, 0.7);
+  --card: #20111c;
+  --card-raw: #20111c;
+  --text: #ffe0f0;
+  --text-secondary: #a07090;
+  --accent-rgb: 255,126,179;
+  --input-bg: #1a0d17;
+  --input-bg-raw: #1a0d17;
+  --header-bg: #0f060c;
+  --header-bg-raw: #0f060c;
+  --border: rgba(255,126,179,0.14);
 }
 
 @layer base {
   * { outline: none !important; -webkit-tap-highlight-color: transparent; }
-  body { @apply bg-jm-bg text-white overflow-hidden select-none cursor-default transition-colors duration-500; }
+  html {
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01", "ss03";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-jm-bg overflow-hidden select-none cursor-default;
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.4;
+    transition: background-color 0.5s, color 0.5s;
+  }
+  code, kbd, pre, samp, .mono {
+    font-family: var(--font-mono);
+    font-feature-settings: "zero", "ss01";
+  }
+}
+
+/* ═══ Global animated effects ═══ */
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--accent-rgb), 0.08) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(var(--accent-rgb), 0.1), inset 0 0 15px rgba(var(--accent-rgb), 0.03); }
+  50% { box-shadow: 0 0 30px rgba(var(--accent-rgb), 0.2), inset 0 0 20px rgba(var(--accent-rgb), 0.06); }
+}
+.glow-pulse { animation: pulse-glow 3s ease-in-out infinite; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.float { animation: float 4s ease-in-out infinite; }
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.gradient-animate {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+@keyframes progress-stripe {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 0; }
+}
+.progress-striped {
+  background-image: linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.1) 75%, transparent 75%, transparent);
+  background-size: 40px 40px;
+  animation: progress-stripe 1s linear infinite;
+}
+
+@keyframes border-glow {
+  0%, 100% { border-color: rgba(var(--accent-rgb), 0.15); }
+  50% { border-color: rgba(var(--accent-rgb), 0.4); }
+}
+.border-glow { animation: border-glow 3s ease-in-out infinite; }
+
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.spin-slow { animation: spin-slow 20s linear infinite; }
+
+/* ═══ UI motion (Svelte shell) ═══ */
+@keyframes jm-reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.jm-reveal {
+  animation: jm-reveal-up 0.22s ease-out both;
+}
+@keyframes jm-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-pop { animation: jm-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes jm-pulse-slow {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+.animate-pulse-slow { animation: jm-pulse-slow 4s ease-in-out infinite; }
+.jm-tap-scale {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.jm-tap-scale:active {
+  transform: scale(0.96);
+}
+.card-hover-subtle {
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.card-hover-subtle:hover {
+  border-color: var(--border-strong);
+}
+
+.card-hover {
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.card-hover:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.glass {
+  background: var(--header-bg);
+}
+
+.jm-header-sheen {
+  position: relative;
+}
+.jm-header-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(var(--accent-rgb), 0.06) 42%,
+    transparent 68%
+  );
+  opacity: 0.85;
+}
+.jm-reduce-motion .jm-header-sheen::after {
+  animation: none;
+  opacity: 0.5;
+}
+
+.jm-tab-panel {
+  will-change: transform, opacity;
+}
+.jm-reduce-motion .jm-tab-panel {
+  will-change: auto;
+}
+
+/* ═══ Theme-aware overrides — ALL themes ═══ */
+
+/* Text: always follow theme variables */
+.text-white { color: var(--text) !important; }
+.text-white\/90 { color: color-mix(in srgb, var(--text) 90%, transparent) !important; }
+.text-white\/80 { color: color-mix(in srgb, var(--text) 80%, transparent) !important; }
+.text-white\/70 { color: color-mix(in srgb, var(--text) 70%, transparent) !important; }
+.text-white\/60 { color: color-mix(in srgb, var(--text) 60%, transparent) !important; }
+.text-white\/50 { color: color-mix(in srgb, var(--text) 50%, transparent) !important; }
+.text-white\/40 { color: color-mix(in srgb, var(--text) 40%, transparent) !important; }
+.text-white\/45 { color: color-mix(in srgb, var(--text) 45%, transparent) !important; }
+.hover\:text-white:hover { color: var(--text) !important; }
+
+/* Rings / offsets — из цвета текста темы */
+.ring-white\/10 {
+  --tw-ring-color: color-mix(in srgb, var(--text) 14%, transparent) !important;
+}
+.ring-white\/20 {
+  --tw-ring-color: color-mix(in srgb, var(--text) 22%, transparent) !important;
+}
+
+/* Тёмные подложки: смешивание карточки и фона (меняется с темой) */
+.bg-black\/20 { background: color-mix(in srgb, var(--card) 55%, var(--bg)) !important; }
+.bg-black\/25 { background: color-mix(in srgb, var(--card) 62%, var(--bg)) !important; }
+.bg-black\/30 { background: color-mix(in srgb, var(--card) 70%, var(--bg)) !important; }
+.bg-black\/35 { background: color-mix(in srgb, var(--card) 78%, var(--bg)) !important; }
+.bg-black\/40 { background: color-mix(in srgb, var(--card) 85%, var(--bg)) !important; }
+.bg-black\/45 { background: color-mix(in srgb, var(--card) 88%, var(--bg)) !important; }
+.bg-black\/50 { background: color-mix(in srgb, var(--card) 92%, var(--bg)) !important; }
+.bg-black\/60 { background: color-mix(in srgb, var(--card) 95%, var(--bg)) !important; }
+.bg-black\/75 { background: color-mix(in srgb, var(--bg) 40%, #000000) !important; }
+
+.border-white\/15 { border-color: color-mix(in srgb, var(--border) 80%, var(--accent)) !important; }
+.divide-white\/5 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border) !important;
+}
+.divide-white\/10 > :not([hidden]) ~ :not([hidden]) {
+  border-color: color-mix(in srgb, var(--border) 90%, var(--accent)) !important;
+}
+
+/* Subtle surfaces — use accent-tinted translucency */
+.bg-white\/5  { background: rgba(var(--accent-rgb), 0.05) !important; }
+.bg-white\/10 { background: rgba(var(--accent-rgb), 0.10) !important; }
+.bg-white\/20 { background: rgba(var(--accent-rgb), 0.15) !important; }
+.hover\:bg-white\/5:hover  { background: rgba(var(--accent-rgb), 0.08) !important; }
+.hover\:bg-white\/10:hover { background: rgba(var(--accent-rgb), 0.13) !important; }
+.hover\:bg-white\/20:hover { background: rgba(var(--accent-rgb), 0.18) !important; }
+
+/* Borders: follow theme border variable */
+.border-white\/5  { border-color: var(--border) !important; }
+.border-white\/10 { border-color: var(--border) !important; }
+.border-white\/20 { border-color: color-mix(in srgb, var(--accent) 25%, transparent) !important; }
+.border-white\/30 { border-color: color-mix(in srgb, var(--accent) 35%, transparent) !important; }
+.hover\:border-white\/30:hover { border-color: color-mix(in srgb, var(--accent) 40%, transparent) !important; }
+
+/* ═══ Light theme extras ═══ */
+:is(.theme-purple-light, .theme-red-light, .theme-light-gold) {
+  .bg-black\/20,
+  .bg-black\/25,
+  .bg-black\/30,
+  .bg-black\/35,
+  .bg-black\/40,
+  .bg-black\/45,
+  .bg-black\/50,
+  .bg-black\/60 {
+    background: color-mix(in srgb, var(--card) 92%, var(--text) 4%) !important;
+  }
+  .bg-black\/75 {
+    background: color-mix(in srgb, var(--bg) 88%, var(--text) 12%) !important;
+  }
+  .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05), 0 10px 10px -5px rgba(0,0,0,0.02) !important; }
+  .bg-white\/5  { background: rgba(var(--accent-rgb), 0.06) !important; }
+  .bg-white\/10 { background: rgba(var(--accent-rgb), 0.10) !important; }
+}
+
+/* All themes: input bg */
+input[type="text"], input[type="number"], textarea, select {
+  background: var(--input-bg) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus {
+  border-color: var(--accent) !important;
+}
+
+/* Custom scrollbar for all themes */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(var(--accent-rgb), 0.3);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--accent-rgb), 0.5);
+}
+
+/* Discover tab: sanitized HTML / Markdown output */
+.discover-md ul,
+.discover-md ol {
+  margin: 0.5em 0;
+  padding-left: 1.25em;
+}
+.discover-md a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.discover-md pre,
+.discover-md code {
+  font-size: 0.9em;
+}
+.discover-md img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+.discover-md h1,
+.discover-md h2,
+.discover-md h3 {
+  font-weight: 700;
+  margin: 0.75em 0 0.35em;
+  color: color-mix(in srgb, var(--text) 92%, var(--accent));
+}
+
+/* ═══ Premium chrome ═══ */
+.jm-app-shell {
+  /* titlebar (h-9 = 2.25rem) + small breathing room */
+  --jm-chrome-stack: 2.5rem;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* Мягкий дрейф для фоновых орбов */
+@keyframes jm-ambient-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(2%, -1.5%) scale(1.03);
+  }
+  66% {
+    transform: translate(-1.5%, 2%) scale(0.98);
+  }
+}
+.jm-ambient-orb {
+  animation: jm-ambient-drift 22s ease-in-out infinite;
+}
+.jm-ambient-orb-delayed {
+  animation: jm-ambient-drift 28s ease-in-out infinite;
+  animation-delay: -7s;
+}
+.jm-ambient-orb-slow {
+  animation: jm-ambient-drift 36s ease-in-out infinite;
+  animation-delay: -14s;
+  animation-direction: alternate;
+}
+
+/* Индетерминированный прогресс (обновление лаунчера) */
+@keyframes jm-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+.jm-progress-indeterminate {
+  position: relative;
+  overflow: hidden;
+}
+.jm-progress-indeterminate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--accent-rgb), 0.55),
+    rgba(var(--accent-rgb), 0.85),
+    rgba(var(--accent-rgb), 0.55),
+    transparent
+  );
+  animation: jm-indeterminate 1.35s ease-in-out infinite;
+}
+.jm-breathe {
+  animation: jm-breathe 10s ease-in-out infinite;
+}
+@keyframes jm-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.06);
+  }
+}
+.jm-toast-glow {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+.jm-nav-pill {
+  box-shadow: none;
+}
+
+/* ═══ CTA / hero motion ═══ */
+@keyframes jm-shine-sweep {
+  0% {
+    transform: translateX(-120%) skewX(-12deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateX(220%) skewX(-12deg);
+    opacity: 0;
+  }
+}
+.jm-cta-shine {
+  position: relative;
+  overflow: hidden;
+}
+.jm-cta-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.12) 45%,
+    transparent 70%
+  );
+  animation: jm-shine-sweep 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes jm-ring-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(var(--accent-rgb), 0);
+  }
+}
+.jm-ring-pulse {
+  animation: jm-ring-pulse 2.2s ease-out infinite;
+}
+@keyframes jm-soft-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+.jm-soft-bob {
+  animation: jm-soft-bob 3.2s ease-in-out infinite;
+}
+.jm-gradient-border {
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-rgb), 0.45),
+    rgba(var(--accent-rgb), 0.08),
+    rgba(var(--accent-rgb), 0.35)
+  );
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease infinite;
+  padding: 1px;
+  border-radius: inherit;
+}
+.jm-gradient-border > .jm-gradient-border-inner {
+  border-radius: inherit;
+  background: var(--card);
+  backdrop-filter: blur(12px);
+}
+
+/* Режим производительности: без декоративного фона и лишней анимации */
+.jm-reduce-motion .jm-ambient {
+  display: none;
+}
+.jm-reduce-motion .jm-soft-bob,
+.jm-reduce-motion .jm-breathe,
+.jm-reduce-motion .spin-slow,
+.jm-reduce-motion .shimmer,
+.jm-reduce-motion .glow-pulse,
+.jm-reduce-motion .jm-cta-shine::after,
+.jm-reduce-motion .jm-ring-pulse,
+.jm-reduce-motion .jm-gradient-border {
+  animation: none !important;
+}
+.jm-reduce-motion .jm-progress-indeterminate > div:first-child {
+  animation: none !important;
+}
+
+/* ═══════════════════════════════════════════════
+   Minimal UI (v2) — canonical classes
+   1 accent, 2 surfaces, 1 radius family, no shine
+   ═══════════════════════════════════════════════ */
+
+.ui-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: border-color 180ms ease, background 180ms ease;
+}
+/* В режиме обоев плитки нуждаются в тени — без неё они «плавают» над фоном и
+ * границы теряются. Тень декларирует визуальную иерархию: карточка выше фона. */
+html.jm-wallpaper-ui .ui-card {
+  box-shadow: var(--shadow-1);
+}
+.ui-card-interactive {
+  cursor: pointer;
+}
+.ui-card-interactive:hover,
+.ui-card:hover > .ui-card-interactive {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+.ui-card.ui-card-flat {
+  background: transparent;
+}
+
+.ui-page {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px 18px;
+  overflow: hidden;
+}
+
+/* ═══ Unified modal surface ═══ */
+.jm-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.35);
+}
+.jm-modal-backdrop.jm-modal-backdrop-soft {
+  background: rgba(0, 0, 0, 0.18);
+}
+.jm-modal-backdrop.jm-modal-backdrop-center {
+  align-items: center;
+  justify-content: center;
+  padding: clamp(12px, 2vw, 28px);
+}
+.jm-modal-backdrop.jm-modal-backdrop-right {
+  justify-content: flex-end;
+}
+.jm-modal-surface {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.35), 0 1px 0 var(--border) inset;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+.jm-modal-surface.jm-modal-side {
+  border-radius: 0;
+  border: 0;
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 32px -16px rgba(0, 0, 0, 0.45);
+  height: 100%;
+}
+.jm-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+  min-height: 52px;
+}
+.jm-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+}
+.jm-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px;
+}
+.jm-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-1);
+  justify-content: flex-end;
+}
+
+/* Плавающие углы: виджет загрузки / тосты */
+.jm-dl-corner-tl {
+  top: calc(var(--jm-chrome-stack, 2.5rem) + 0.5rem);
+  left: 1.5rem;
+}
+.jm-dl-corner-tr {
+  top: calc(var(--jm-chrome-stack, 2.5rem) + 0.5rem);
+  right: 1.5rem;
+}
+
+/* Пресеты оформления модалок (атрибут data-modal-preset на <html>) */
+html[data-modal-preset="minimal"] {
+  --jm-m-backdrop: rgba(0, 0, 0, 0.32);
+  --jm-m-backdrop-blur: 0px;
+  --jm-m-surface-radius: var(--radius-lg);
+  --jm-m-surface-shadow: 0 10px 36px rgba(0, 0, 0, 0.32);
+}
+html[data-modal-preset="glass"] {
+  --jm-m-backdrop: rgba(0, 0, 0, 0.4);
+  --jm-m-backdrop-blur: 10px;
+  --jm-m-surface-radius: var(--radius-lg);
+  --jm-m-surface-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
+}
+html[data-modal-preset="dense"] {
+  --jm-m-backdrop: rgba(0, 0, 0, 0.55);
+  --jm-m-backdrop-blur: 0px;
+  --jm-m-surface-radius: var(--radius-sm);
+  --jm-m-surface-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+html[data-modal-preset="sheet"] {
+  --jm-m-backdrop: rgba(0, 0, 0, 0.5);
+  --jm-m-backdrop-blur: 2px;
+  --jm-m-surface-radius: 0;
+  --jm-m-surface-shadow: -4px 0 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Синхронизированные оверлеи (см. InternalBrowserModal) */
+.jm-preset-modal-backdrop {
+  background: var(--jm-m-backdrop, rgba(0, 0, 0, 0.5)) !important;
+  backdrop-filter: blur(var(--jm-m-backdrop-blur, 0)) !important;
+  -webkit-backdrop-filter: blur(var(--jm-m-backdrop-blur, 0)) !important;
+}
+.jm-preset-modal-surface {
+  border-radius: var(--jm-m-surface-radius, var(--radius-lg)) !important;
+  box-shadow: var(--jm-m-surface-shadow, 0 8px 32px rgba(0, 0, 0, 0.35)) !important;
+}
+html[data-modal-preset="glass"] .jm-preset-modal-surface {
+  background: color-mix(in srgb, var(--card) 88%, transparent) !important;
+  border-color: var(--border) !important;
+}
+html[data-modal-preset="sheet"] .jm-preset-modal-surface {
+  border-radius: var(--radius) !important;
+}
+
+/* Standard horizontal container — fills sidebar-less content area.
+   On very wide screens (ultrawide) caps to 1720px to keep text readable.
+   Use instead of tailwind max-w-5xl/6xl/7xl + mx-auto + px-*. */
+.jm-container {
+  width: 100%;
+  max-width: min(1720px, 100%);
+  margin-inline: auto;
+  padding-left: clamp(16px, 1.75vw, 28px);
+  padding-right: clamp(16px, 1.75vw, 28px);
+}
+.jm-container-narrow {
+  width: 100%;
+  max-width: min(1200px, 100%);
+  margin-inline: auto;
+  padding-left: clamp(16px, 1.5vw, 24px);
+  padding-right: clamp(16px, 1.5vw, 24px);
+}
+
+.ui-pane {
+  background: color-mix(in srgb, var(--surface-2) 90%, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-lg) + 2px);
+  box-shadow: var(--shadow-1);
+}
+
+.ui-pane-soft {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-1) 86%, transparent) 0%,
+      color-mix(in srgb, var(--surface-2) 94%, var(--bg)) 100%
+    );
+}
+
+@media (max-width: 900px) {
+  .ui-page {
+    padding: 14px 14px 16px;
+    gap: 14px;
+  }
+}
+
+.ui-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.ui-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.ui-hint {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.ui-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 16px;
+}
+.ui-row + .ui-row {
+  border-top: 1px solid var(--border);
+}
+.ui-row-stacked {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.ui-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ui-btn:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+.ui-btn-primary {
+  background: var(--accent);
+  color: #0a0a0a;
+  border-color: var(--accent);
+}
+.ui-btn-primary:hover:not(:disabled) {
+  background: var(--accent-light);
+  border-color: var(--accent-light);
+}
+
+.ui-btn-subtle {
+  background: var(--surface-1);
+  border-color: var(--border);
+  color: var(--text);
+}
+.ui-btn-subtle:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.ui-btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.ui-btn-ghost:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.ui-btn-danger {
+  background: transparent;
+  color: #f87171;
+  border-color: color-mix(in srgb, #f87171 35%, transparent);
+}
+.ui-btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, #f87171 12%, transparent);
+}
+
+.ui-btn-sm {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+}
+
+.ui-btn-icon {
+  padding: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+}
+
+.ui-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.3;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.ui-input::placeholder { color: var(--text-secondary); }
+.ui-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-secondary) 14%, transparent);
+  color: var(--text-secondary);
+}
+.ui-chip-success {
+  background: color-mix(in srgb, #22c55e 18%, transparent);
+  color: #86efac;
+}
+.ui-chip-danger {
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  color: #fca5a5;
+}
+.ui-chip-accent {
+  background: var(--accent-softer);
+  color: var(--accent-light);
+}
+
+/* Minimalist switch on top of native checkbox */
+.ui-toggle {
+  --sw-w: 34px;
+  --sw-h: 20px;
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: var(--sw-w);
+  height: var(--sw-h);
+  border-radius: 999px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+  flex-shrink: 0;
+}
+.ui-toggle::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: calc(var(--sw-h) - 4px);
+  height: calc(var(--sw-h) - 4px);
+  border-radius: 999px;
+  background: var(--text-secondary);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), background 160ms ease;
+}
+.ui-toggle:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.ui-toggle:checked::after {
+  background: #0a0a0a;
+  transform: translateX(calc(var(--sw-w) - var(--sw-h)));
+}
+.ui-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.ui-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Segmented tab group */
+.ui-seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.ui-seg-item {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.ui-seg-item:hover { color: var(--text); background: var(--surface-hover); }
+.ui-seg-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-light);
+}
+
+/* Sidebar nav item for two-column settings */
+.ui-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background 140ms ease, color 140ms ease;
+}
+.ui-nav-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.ui-nav-item.is-active {
+  background: var(--accent-softer);
+  color: var(--accent-light);
+}
+
+/* Sticky footer inside a scroll container */
+.ui-sticky-footer {
+  position: sticky;
+  bottom: 0;
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  z-index: 5;
 }

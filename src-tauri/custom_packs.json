@@ -1,3 +1,16 @@
-{
-  "url": "https://example.com/packs.json"
-}
+[
+  {
+    "id": "jentle-main",
+    "title": "JentleMemes Main",
+    "description": "Основная сборка для сервера JentleMemes.",
+    "author": "JentleMemes",
+    "url": "https://jentlememes.ru/static/Launcher_Packs/Main.mrpack"
+  },
+  {
+    "id": "jentle-maniac_3",
+    "title": "JentleMemes Pack Maniac 3",
+    "description": "Сборка для сервера JentleMemes Maniac 3.",
+    "author": "JentleMemes",
+    "url": "https://jentlememes.ru/static/Launcher_Packs/Maniac_3.mrpack"
+  }
+]

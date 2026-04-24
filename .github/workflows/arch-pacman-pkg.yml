@@ -1,0 +1,108 @@
+name: Arch pacman package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: "Существующий git-тег (с v), исходники качаются с GitHub по нему"
+        required: true
+        default: "v2.0.0"
+      upload_to_release:
+        description: "Прикрепить .pkg.tar.zst к этому релизу на GitHub (gh release upload)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  pacman-pkg:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          set -eux
+          pacman-key --init
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel git nodejs npm rust pkgconf sudo github-cli \
+            gtk3 webkit2gtk-4.1 libayatana-appindicator gdk-pixbuf2 openssl
+
+      - name: Version from release or input
+        id: ver
+        run: |
+          set -eux
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ github.event.inputs.version_tag }}"
+          fi
+          TAG="${TAG#refs/tags/}"
+          case "$TAG" in v*) ;; *) TAG="v${TAG}" ;; esac
+          PKGVER="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "pkgver=$PKGVER" >> "$GITHUB_OUTPUT"
+
+      - name: Sync pkgver in PKGBUILD with tag
+        run: |
+          set -eux
+          sed -i "s/^pkgver=.*/pkgver=${{ steps.ver.outputs.pkgver }}/" \
+            packaging/aur/jentlememes-launcher/PKGBUILD
+
+      - name: makepkg
+        run: |
+          set -eux
+          useradd -m -s /bin/bash builduser
+          chown -R builduser:builduser "$GITHUB_WORKSPACE"
+          sudo -u builduser bash -ce '
+            cd packaging/aur/jentlememes-launcher
+            makepkg -f --noconfirm
+          '
+
+      - name: Name for jentlememes-launcher-bin PKGBUILD
+        run: |
+          set -eux
+          V="${{ steps.ver.outputs.pkgver }}"
+          REL=$(grep -E '^pkgrel=' packaging/aur/jentlememes-launcher/PKGBUILD | head -1 | cut -d= -f2)
+          SRC="packaging/aur/jentlememes-launcher/jentlememes-launcher-${V}-${REL}-x86_64.pkg.tar.zst"
+          test -f "$SRC"
+          cp -f "$SRC" "$GITHUB_WORKSPACE/jentlememes-launcher-bin-${V}-${REL}-x86_64.pkg.tar.zst"
+          ls -la "$GITHUB_WORKSPACE"/*.pkg.tar.zst
+
+      - name: Upload to release (on release publish)
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          V="${{ steps.ver.outputs.pkgver }}"
+          REL=$(grep -E '^pkgrel=' packaging/aur/jentlememes-launcher/PKGBUILD | head -1 | cut -d= -f2)
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "jentlememes-launcher-bin-${V}-${REL}-x86_64.pkg.tar.zst" \
+            --clobber
+
+      - name: Upload to release (manual run)
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          (inputs.upload_to_release == true || inputs.upload_to_release == 'true')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          V="${{ steps.ver.outputs.pkgver }}"
+          REL=$(grep -E '^pkgrel=' packaging/aur/jentlememes-launcher/PKGBUILD | head -1 | cut -d= -f2)
+          TAG="${{ steps.ver.outputs.tag }}"
+          gh release upload "$TAG" \
+            "jentlememes-launcher-bin-${V}-${REL}-x86_64.pkg.tar.zst" \
+            --clobber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jentlememes-launcher-bin-${{ steps.ver.outputs.pkgver }}-x86_64
+          path: jentlememes-launcher-bin-*.pkg.tar.zst

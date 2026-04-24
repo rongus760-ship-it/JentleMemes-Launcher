@@ -1,0 +1,37 @@
+# Maintainer: set your name and email before submitting to AUR
+# makepkg produces *.pkg.tar.zst — that is normal; nothing to set here for AUR.
+pkgname=jentlememes-launcher
+pkgver=2.0.0
+pkgrel=1
+pkgdesc='JentleMemes Minecraft launcher (Tauri 2)'
+arch=('x86_64')
+url='https://github.com/rongus760-ship-it/JentleMemes-Launcher'
+license=('Apache-2.0' 'MIT')
+depends=('gtk3' 'webkit2gtk-4.1' 'libayatana-appindicator' 'gdk-pixbuf2' 'openssl')
+makedepends=('nodejs' 'npm' 'rust' 'cargo' 'git' 'pkgconf')
+source=(
+  "${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
+  "jentlememes-launcher.desktop::${url}/raw/v${pkgver}/packaging/aur/jentlememes-launcher.desktop"
+)
+sha256sums=('SKIP' 'SKIP')
+
+prepare() {
+  cd "${srcdir}/JentleMemes-Launcher-${pkgver}"
+  npm ci
+}
+
+build() {
+  cd "${srcdir}/JentleMemes-Launcher-${pkgver}"
+  npm run build
+  cd src-tauri
+  cargo build --release --locked
+}
+
+package() {
+  cd "${srcdir}/JentleMemes-Launcher-${pkgver}"
+  install -Dm755 "src-tauri/target/release/jentlememes-launcher" "${pkgdir}/usr/bin/jentlememes-launcher"
+  install -Dm644 "${srcdir}/jentlememes-launcher.desktop" "${pkgdir}/usr/share/applications/jentlememes-launcher.desktop"
+  install -Dm644 "src-tauri/icons/32x32.png" "${pkgdir}/usr/share/icons/hicolor/32x32/apps/jentlememes-launcher.png"
+  install -Dm644 "src-tauri/icons/128x128.png" "${pkgdir}/usr/share/icons/hicolor/128x128/apps/jentlememes-launcher.png"
+  install -Dm644 "src-tauri/icons/128x128@2x.png" "${pkgdir}/usr/share/icons/hicolor/256x256/apps/jentlememes-launcher.png"
+}

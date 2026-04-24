@@ -1,33 +1,41 @@
 //! Загрузка и кэширование кастомных сборок с удалённого URL.
 //! При каждом перезапуске лаунчера JSON обновляется.
 
+use crate::config::get_data_dir;
+use crate::custom_packs_url::{get_custom_packs_source, CustomPacksSource};
+use crate::error::Result;
+use serde_json::Value;
 use std::fs;
 use std::sync::Mutex;
-use serde_json::Value;
-use crate::config::get_data_dir;
-use crate::custom_packs_url::get_custom_packs_url;
-use crate::error::Result;
 
 static CACHE: Mutex<Option<Value>> = Mutex::new(None);
 
-/// Загружает JSON со сборками с удалённого адреса и кэширует в data_dir.
+fn normalize_packs_json(json: Value) -> Value {
+    if let Some(a) = json.as_array() {
+        return Value::Array(a.clone());
+    }
+    if let Some(p) = json
+        .get("packs")
+        .or(json.get("items"))
+        .and_then(|v| v.as_array())
+    {
+        return Value::Array(p.clone());
+    }
+    Value::Array(vec![])
+}
+
+/// Загружает список сборок (удалённо или из встроенного `custom_packs.json`) и кэширует в data_dir.
 /// Вызывается при старте лаунчера.
 pub async fn fetch_and_cache_packs() -> Result<Value> {
-    let url = get_custom_packs_url();
-    if url.is_empty() {
-        return Ok(serde_json::json!([]));
-    }
-    let client = reqwest::Client::builder()
-        .user_agent("JentleMemesLauncher/1.0")
-        .build()?;
-    let res = client.get(&url).send().await?;
-    let json: Value = res.json().await?;
-    let arr = if let Some(a) = json.as_array() {
-        Value::Array(a.clone())
-    } else if let Some(packs) = json.get("packs").or(json.get("items")) {
-        packs.clone()
-    } else {
-        json.clone()
+    let arr = match get_custom_packs_source() {
+        CustomPacksSource::Empty => Value::Array(vec![]),
+        CustomPacksSource::Inline(v) => normalize_packs_json(v),
+        CustomPacksSource::Remote(url) => {
+            let client = crate::core::api::http_client();
+            let res = client.get(&url).send().await?;
+            let json: Value = res.json().await?;
+            normalize_packs_json(json)
+        }
     };
     let cache_path = get_data_dir().join("custom_packs_cache.json");
     fs::create_dir_all(get_data_dir())?;

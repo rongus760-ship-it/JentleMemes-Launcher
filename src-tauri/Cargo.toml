@@ -1,8 +1,8 @@
 [package]
 name = "jentlememes-launcher"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "2.0.0"
+description = "A Jentl Minecraft Launcher"
+authors = ["RGYTshka, l1zxxx"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -13,12 +13,20 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2.0", features = ["protocol-asset"] }  # без дополнительных фич
 tauri-plugin-opener = "2.0"
+tauri-plugin-global-shortcut = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["full"] }
-reqwest = { version = "0.11", features = ["json", "stream"] }
+# reqwest 0.11 — бамп до 0.12 планируется в dedicated PR (мигрирует на hyper 1.0 ecosystem,
+# возможен каскад breaking changes в `stream` и TLS backend). См. CHANGELOG → Deferred.
+reqwest = { version = "0.11", features = ["json", "stream", "multipart"] }
+base64 = "0.22"
+urlencoding = "2.1"
+# zip 0.6 — известные CVE. Миграция на 2.x требует переделки ZipArchive API; в follow-up PR.
 zip = "0.6"
 sha1 = "0.10"
+sha2 = "0.10"
+murmur2 = "0.1"
 sysinfo = "0.30"
 dirs = "5.0"
 rfd = "0.14"
@@ -30,3 +38,28 @@ async_zip = { version = "0.0.17", features = ["tokio", "deflate"] }
 bytes = "1.0"
 futures = "0.3"
 quartz_nbt = "0.2"
+discord-rich-presence = "1"
+rsa = { version = "0.9", features = ["pem", "sha1"] }
+rand = "0.8"
+display-info = "0.4"
+hickory-resolver = { version = "0.24", default-features = false, features = ["tokio-runtime", "system-config"] }
+quick-xml = "0.37"
+reflink-copy = "0.1.29"
+libc = "0.2.185"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "std"] }
+tracing-appender = "0.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+  "Win32_Foundation",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = { version = "0.13", features = ["allow-unsafe-code"] }
+# webkit2gtk жёстко пин: 2.0.2 — последняя версия, совместимая с Tauri 2.x на libwebkit2gtk-4.1.
+# Бамп до 2.1+ ломает `connect_permission_request` / `WebViewExt` API (требует либо Tauri 2.x
+# с новой системой плагинов, либо ручного патча `install_linux_webview_permissions`).
+webkit2gtk = "=2.0.2"
+

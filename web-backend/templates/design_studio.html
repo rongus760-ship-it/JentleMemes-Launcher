@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Page Builder v4.0 | JentleMEMES</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; display: flex; height: 100vh; background: #0a0a0a; color: #fff; font-family: 'Inter', sans-serif; overflow: hidden; }
+        
+        /* ПАНЕЛЬ ИНСТРУМЕНТОВ */
+        .sidebar { width: 380px; background: #151515; border-right: 1px solid #333; padding: 20px; display: flex; flex-direction: column; gap: 15px; z-index: 100; box-shadow: 5px 0 20px rgba(0,0,0,0.5); overflow-y: auto;}
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        h2 { margin: 0 0 5px 0; color: #a855f7; font-size: 22px; display: flex; justify-content: space-between; align-items: center;}
+        
+        .btn { background: #333; color: #fff; padding: 10px; border: 1px solid #444; border-radius: 6px; cursor: pointer; font-weight: bold; text-align: center; transition: 0.2s; display: block; width: 100%; box-sizing: border-box;}
+        .btn:hover { background: #444; border-color: #FBBF24; }
+        .btn-primary { background: #FBBF24; color: #000; border: none; margin-top: 15px; padding: 15px; font-size: 16px;}
+        .btn-primary:hover { background: #f59e0b; }
+        .btn-figma { background: linear-gradient(45deg, #f24e1e, #ff7262, #a259ff, #1abcfe, #0acf83); color: white; border: none;}
+        
+        .section { background: #1f1f1f; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 10px;}
+        .section h3 { margin: 0 0 15px 0; font-size: 13px; text-transform: uppercase; color: #aaa; letter-spacing: 1px;}
+        .control { margin-bottom: 12px; }
+        .control label { display: block; font-size: 13px; margin-bottom: 5px; color: #ccc; }
+        input[type="text"], select { width: 100%; padding: 8px; background: #0a0a0a; border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; font-size: 13px;}
+        input[type="color"] { width: 100%; height: 35px; border: none; border-radius: 6px; background: none; cursor: pointer; padding: 0; }
+
+        /* ХОЛСТ */
+        .workspace { flex-grow: 1; background: #111; display: flex; flex-direction: column; overflow: hidden;}
+        .toolbar { background: #000; padding: 10px 20px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center;}
+        
+        .canvas-container { 
+            flex-grow: 1; position: relative; background-color: #1a1a1a;
+            background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 20px 20px; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 40px;
+        }
+
+        .builder-canvas {
+            width: 1200px; height: 2000px; background: #0a0a0a; position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8); border-radius: 12px; border: 1px solid #333;
+            transform-origin: top center; flex-shrink: 0;
+        }
+
+        /* ЭЛЕМЕНТЫ */
+        .b-elem { position: absolute; cursor: grab; box-sizing: border-box; user-select: none; transition: box-shadow 0.2s; z-index: 10;}
+        .b-elem:active { cursor: grabbing; z-index: 50; }
+        .b-elem.selected { outline: 2px dashed #FBBF24; outline-offset: 2px; z-index: 100;}
+        
+        /* Визуал зон и сложной графики */
+        .b-zone_news, .b-zone_servers, .b-zone_modes { background: rgba(59, 130, 246, 0.1); border: 2px dashed #3b82f6; border-radius: 12px; display: flex; justify-content: center; align-items: center; color: #3b82f6; font-weight: bold; font-size: 24px;}
+        .b-button { background: #FBBF24; color: #000; border-radius: 8px; font-weight: bold; display: flex; justify-content: center; align-items: center; font-size: 18px;}
+        .b-text { color: #fff; font-size: 32px; font-weight: bold; display: flex; align-items: center; justify-content: center; text-align: center;}
+        .b-shape { background: #444; border-radius: 4px; }
+        .b-circle { background: #a855f7; border-radius: 50%; }
+
+        .resizer { position: absolute; bottom: -5px; right: -5px; width: 14px; height: 14px; background: #FBBF24; border-radius: 50%; cursor: se-resize; display: none; z-index: 101;}
+        .b-elem.selected .resizer { display: block; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>🛠️ Builder <span>v4.0</span></h2>
+        
+        <!-- МНОГОСТРАНИЧНОСТЬ -->
+        <div class="section" style="border-color: #a855f7;">
+            <h3>Управление Страницами</h3>
+            <select id="page-selector" onchange="window.location.href='/admin/design?page=' + this.value">
+                {% for p in pages %}
+                    <option value="{{ p.slug }}" {% if p.slug == current_page.slug %}selected{% endif %}>📄 {{ p.title }} ({{ p.slug }})</option>
+                {% endfor %}
+            </select>
+            <div style="display: flex; gap: 5px; margin-top: 10px;">
+                <input type="text" id="new_page_slug" placeholder="Новый slug (напр: wiki)">
+                <button class="btn" style="width: auto;" onclick="createNewPage()">Создать</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Импорт и Пресеты</h3>
+            <button class="btn" style="border-color: #3b82f6; color: #3b82f6; margin-bottom: 10px;" onclick="loadPreset()">🔄 Сбросить до Классического Вида</button>
+            <button class="btn btn-figma" onclick="importFromFigma()">✨ Импорт структуры из Figma</button>
+        </div>
+
+        <div class="section">
+            <h3>Простые элементы</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <button class="btn" onclick="addElement('text')">📝 Текст</button>
+                <button class="btn" onclick="addElement('button')">🔘 Кнопка</button>
+                <button class="btn" onclick="addElement('shape')">⬛ Прямоугольник</button>
+                <button class="btn" onclick="addElement('circle')">⚪ Круг</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>Пресеты (Динамические Зоны)</h3>
+            <p style="font-size: 12px; color: #888; margin-top: 0;">Сайт сам заполнит эти зоны данными из БД.</p>
+            <div style="display: grid; gap: 10px;">
+                <button class="btn" onclick="addElement('zone_servers')" style="border-color: #3b82f6; color: #3b82f6;">🌐 Зона: Статус Серверов</button>
+                <button class="btn" onclick="addElement('zone_modes')" style="border-color: #22c55e; color: #22c55e;">🎮 Зона: Игровые Режимы</button>
+                <button class="btn" onclick="addElement('zone_news')" style="border-color: #f59e0b; color: #f59e0b;">📰 Зона: Лента Новостей</button>
+            </div>
+        </div>
+
+        <!-- ИНСПЕКТОР СВОЙСТВ -->
+        <div class="section" id="inspector" style="display: none; border-color: #FBBF24;">
+            <h3 style="color: #FBBF24;">Свойства Элемента</h3>
+            <div class="control"><label>Тип:</label><input type="text" id="prop-type" disabled style="color: #888;"></div>
+            
+            <div class="control" id="prop-text-group">
+                <label>Текст (HTML доступен):</label>
+                <input type="text" id="prop-text" oninput="updateElement()">
+            </div>
+            
+            <div class="control" id="prop-color-group">
+                <label>Цвет (Фон/Текст):</label>
+                <input type="color" id="prop-color" oninput="updateElement()">
+            </div>
+            
+            <div class="control" id="prop-action-group">
+                <label>Действие (При клике):</label>
+                <select id="prop-action" onchange="updateElement()">
+                    <option value="none">Нет действия</option>
+                    <option value="link">Перейти по ссылке</option>
+                    <option value="copy">Скопировать текст (IP)</option>
+                    <option value="modal">Открыть модальное окно</option>
+                </select>
+                <input type="text" id="prop-action-val" placeholder="Значение..." style="margin-top: 5px;" oninput="updateElement()">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <div><label style="font-size:11px; color:#888;">Ширина</label><input type="number" id="prop-w" oninput="updateSizeManually()"></div>
+                <div><label style="font-size:11px; color:#888;">Высота</label><input type="number" id="prop-h" oninput="updateSizeManually()"></div>
+            </div>
+
+            <button class="btn" style="background: #ef4444; border-color: #ef4444; margin-top: 15px;" onclick="deleteElement()">🗑️ Удалить блок</button>
+        </div>
+
+        <button class="btn-primary" onclick="saveLayout()">💾 Сохранить страницу (JSON)</button>
+        <a href="/admin" class="btn" style="background: transparent; border-color: #444; margin-top: 10px;">← Назад в Админку</a>
+    </div>
+
+    <div class="workspace">
+        <div class="toolbar">
+            <span style="color: #888; font-size: 14px;">Холст: <b style="color: #fff;">{{ current_page.title }} (1200px)</b></span>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <label style="color: #aaa; font-size: 13px;"><input type="checkbox" id="snap-grid" checked> Сетка (20px)</label>
+                <select id="zoom-select" onchange="document.getElementById('builder').style.transform = `scale(${this.value})`" style="width: auto;">
+                    <option value="0.5">Zoom: 50%</option>
+                    <option value="0.75">Zoom: 75%</option>
+                    <option value="1" selected>Zoom: 100%</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="canvas-container">
+            <div class="builder-canvas" id="builder"></div>
+        </div>
+    </div>
+
+    <script>
+        const builder = document.getElementById('builder');
+        const inspector = document.getElementById('inspector');
+        let elements =[];
+        let selectedId = null;
+        let elCounter = 0;
+        const GRID = 20;
+        const CURRENT_SLUG = "{{ current_page.slug }}";
+
+        // Загружаем JSON из базы
+        const savedJson = `{{ layout_json | safe }}`;
+        try {
+            if(savedJson && savedJson !== '[]') {
+                elements = JSON.parse(savedJson);
+                elements.forEach(el => renderElement(el));
+                elCounter = elements.length > 0 ? Math.max(...elements.map(e => e.id)) : 0;
+            }
+        } catch(e) { console.error("JSON Error", e); }
+
+        function loadPreset() {
+            if(confirm("Вы уверены? Это сотрет текущий дизайн и вернет классический вид JentleMEMES!")) {
+                const classic =[{"id":1,"type":"text","x":300,"y":80,"w":600,"h":80,"text":"СЕТЬ СЕРВЕРОВ JENTLEMEMES","color":"#FBBF24","action":"none"},{"id":2,"type":"zone_servers","x":100,"y":200,"w":1000,"h":150,"text":"[Зона: Статус Серверов]","color":"#3b82f6"},{"id":3,"type":"zone_modes","x":100,"y":400,"w":1000,"h":200,"text":"[Зона: Игровые Режимы]","color":"#22c55e"},{"id":4,"type":"zone_news","x":100,"y":650,"w":1000,"h":500,"text":"[Зона: Лента Новостей]","color":"#f59e0b"}];
+                elements = classic;
+                builder.innerHTML = '';
+                elements.forEach(el => renderElement(el));
+            }
+        }
+
+        async function importFromFigma() {
+            const url = prompt("Введите ссылку на файл Figma (https://www.figma.com/file/ID/...):");
+            if(!url) return;
+            try {
+                let res = await fetch('/api/figma_import', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: url}) });
+                let data = await res.json();
+                if(data.status === 'success') {
+                    elements = elements.concat(data.elements);
+                    builder.innerHTML = '';
+                    elements.forEach(el => renderElement(el));
+                    alert("Импорт завершен!");
+                } else {
+                    alert("Ошибка: " + data.error + "\n\n(Убедитесь, что в Админке в 'Соцсетях' добавлен Figma Token!)");
+                }
+            } catch(e) { alert("Ошибка связи с сервером."); }
+        }
+
+        function createNewPage() {
+            const slug = document.getElementById('new_page_slug').value;
+            if(slug) window.location.href = '/admin/design?page=' + slug;
+        }
+
+        function addSysElement(type, x, y, w, h, text, color) {
+            elCounter++;
+            const el = { id: elCounter, type: type, x: x, y: y, w: w, h: h, text: text, color: color, action: 'none', actionVal: '' };
+            elements.push(el);
+            renderElement(el);
+        }
+
+        function addElement(type) {
+            let text = '', w = 200, h = 50, color = '#FBBF24';
+            if(type === 'text') { w = 600; h = 80; text = 'Заголовок'; color = '#ffffff'; }
+            if(type === 'button') { text = 'Кнопка'; }
+            if(type === 'shape') { color = '#444444'; w = 200; h = 200; }
+            if(type === 'circle') { color = '#a855f7'; w = 150; h = 150; }
+            if(type.includes('zone')) { w = 1000; h = 200; text = `[АВТО-ГЕНЕРАЦИЯ: ${type.toUpperCase()}]`; color = '#3b82f6'; }
+            
+            const scrollY = document.querySelector('.canvas-container').scrollTop;
+            addSysElement(type, 100, scrollY + 100, w, h, text, color);
+        }
+
+        function renderElement(data) {
+            const div = document.createElement('div');
+            div.className = `b-elem b-${data.type}`;
+            div.id = 'node_' + data.id;
+            div.style.left = data.x + 'px'; div.style.top = data.y + 'px';
+            div.style.width = data.w + 'px'; div.style.height = data.h + 'px';
+            
+            if(data.type === 'button' || data.type === 'shape' || data.type === 'circle') div.style.backgroundColor = data.color;
+            if(data.type === 'text') div.style.color = data.color;
+            
+            div.innerHTML = `<div class="content" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">${data.text}</div><div class="resizer"></div>`;
+            
+            div.addEventListener('mousedown', (e) => {
+                if(e.target.classList.contains('resizer')) initResize(e, data.id);
+                else { selectElement(data.id); initDrag(e, data.id); }
+            });
+            builder.appendChild(div);
+        }
+
+        function selectElement(id) {
+            if(selectedId) document.getElementById('node_'+selectedId).classList.remove('selected');
+            selectedId = id;
+            document.getElementById('node_'+id).classList.add('selected');
+            
+            const data = elements.find(e => e.id === id);
+            inspector.style.display = 'block';
+            document.getElementById('prop-type').value = data.type;
+            document.getElementById('prop-text').value = data.text;
+            document.getElementById('prop-color').value = data.color || '#ffffff';
+            document.getElementById('prop-action').value = data.action || 'none';
+            document.getElementById('prop-action-val').value = data.actionVal || '';
+            document.getElementById('prop-w').value = data.w;
+            document.getElementById('prop-h').value = data.h;
+            
+            document.getElementById('prop-text-group').style.display = (data.type.includes('zone') || data.type === 'shape' || data.type === 'circle') ? 'none' : 'block';
+            document.getElementById('prop-action-group').style.display = (data.type === 'button' || data.type === 'shape') ? 'block' : 'none';
+        }
+
+        function updateElement() {
+            if(!selectedId) return;
+            const data = elements.find(e => e.id === selectedId);
+            data.text = document.getElementById('prop-text').value;
+            data.color = document.getElementById('prop-color').value;
+            data.action = document.getElementById('prop-action').value;
+            data.actionVal = document.getElementById('prop-action-val').value;
+            
+            const node = document.getElementById('node_'+selectedId);
+            node.querySelector('.content').innerText = data.text;
+            if(data.type === 'button' || data.type === 'shape' || data.type === 'circle') node.style.backgroundColor = data.color;
+            if(data.type === 'text') node.style.color = data.color;
+        }
+
+        function updateSizeManually() {
+            if(!selectedId) return;
+            const data = elements.find(e => e.id === selectedId);
+            da

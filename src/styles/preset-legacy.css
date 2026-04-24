@@ -1,0 +1,163 @@
+/* ═══════════════════════════════════════════════════════════════
+   preset-legacy.css — визуальный пресет «JentleMemes Legacy 1.1.0»
+   ═══════════════════════════════════════════════════════════════
+   Портирован из архива jentlememes-launcher-WIP-20260422-2025.
+   Активируется через html[data-preset="legacy"] и добавляет:
+     - усиленные pulse-glow / shimmer / gradient-border эффекты
+     - фирменный «градиент-рамка» для карточек
+     - border-glow и ring-pulse для CTA-кнопок
+   Базовые keyframes (shimmer, pulse-glow, float, gradient-shift,
+   border-glow, spin-slow, progress-stripe, jm-reveal-up) уже живут
+   в index.css и работают во всех пресетах как opt-in классы.
+   Здесь мы только усиливаем их поверх legacy-пресета.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Legacy: карточки получают мягкое свечение при hover (как в 1.1.0).
+   В других пресетах — только смена border-color. */
+html[data-preset="legacy"] .ui-card:hover,
+html[data-preset="legacy"] .ui-card-interactive:hover {
+  box-shadow:
+    0 0 0 1px var(--border-strong),
+    0 0 18px rgba(var(--accent-rgb), 0.12),
+    0 6px 20px -8px rgba(0, 0, 0, 0.4);
+}
+
+/* Legacy: primary-кнопка всегда со «сиянием» sheen (как jm-cta-shine) */
+html[data-preset="legacy"] .ui-btn-primary {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 70%, var(--accent-light)) 100%
+  );
+}
+html[data-preset="legacy"] .ui-btn-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.18) 45%,
+    transparent 70%
+  );
+  transform: translateX(-120%) skewX(-12deg);
+  transition: transform 0.8s var(--ease-out);
+  pointer-events: none;
+}
+html[data-preset="legacy"] .ui-btn-primary:hover::after {
+  transform: translateX(220%) skewX(-12deg);
+}
+
+/* Legacy: sidebar active-элемент с pulse-glow */
+html[data-preset="legacy"] .ui-nav-item.is-active {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 16px rgba(var(--accent-rgb), 0.08);
+}
+
+/* Legacy: titlebar получает jm-header-sheen как в 1.1.0 */
+html[data-preset="legacy"] .jm-titlebar {
+  position: relative;
+}
+html[data-preset="legacy"] .jm-titlebar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(var(--accent-rgb), 0.06) 42%,
+    transparent 68%
+  );
+  opacity: 0.85;
+}
+
+/* Legacy: toast получает border-left accent (фирменный акцент 1.1.x) */
+html[data-preset="legacy"] .jm-toast-glow {
+  border-left: 3px solid var(--accent);
+  box-shadow:
+    0 0 16px rgba(var(--accent-rgb), 0.12),
+    0 6px 20px -8px rgba(0, 0, 0, 0.35);
+}
+
+/* Legacy: ambient orb более яркий и «живее» */
+html[data-preset="legacy"] .jm-ambient-orb {
+  animation-duration: 18s;
+}
+html[data-preset="legacy"] .jm-ambient-orb-delayed {
+  animation-duration: 24s;
+}
+
+/* Legacy: progress bar всегда progress-striped + анимированный gradient-shift */
+html[data-preset="legacy"] .jm-progress-indeterminate::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--accent-rgb), 0.65),
+    rgba(var(--accent-rgb), 0.95),
+    rgba(var(--accent-rgb), 0.65),
+    transparent
+  );
+}
+
+/* Legacy: тонкая gradient-рамка для hero-секций (использует .jm-legacy-gradient-border класс) */
+html[data-preset="legacy"] .jm-legacy-gradient-border {
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-rgb), 0.55),
+    rgba(var(--accent-rgb), 0.1),
+    rgba(var(--accent-rgb), 0.45)
+  );
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease infinite;
+  padding: 1px;
+  border-radius: inherit;
+}
+html[data-preset="legacy"] .jm-legacy-gradient-border > .jm-legacy-gradient-border-inner {
+  background: var(--card);
+  border-radius: calc(var(--radius-lg) - 1px);
+}
+
+/* Glass preset: backdrop-filter применяется ко всем .ui-card автоматически.
+   Это дорого — но пользователь явно выбрал glass. */
+html[data-preset="glass"] .ui-card {
+  backdrop-filter: var(--surface-backdrop);
+  -webkit-backdrop-filter: var(--surface-backdrop);
+  background: color-mix(in srgb, var(--surface-2) 65%, transparent);
+}
+html[data-preset="glass"] .jm-modal-surface,
+html[data-preset="glass"] .jm-preset-modal-surface {
+  backdrop-filter: var(--surface-backdrop);
+  -webkit-backdrop-filter: var(--surface-backdrop);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+}
+
+/* Discord preset: отключаем декоративную анимацию (shimmer, pulse) ради плотности */
+html[data-preset="discord"] .shimmer,
+html[data-preset="discord"] .glow-pulse,
+html[data-preset="discord"] .gradient-animate,
+html[data-preset="discord"] .jm-cta-shine::after,
+html[data-preset="discord"] .jm-ring-pulse,
+html[data-preset="discord"] .jm-header-sheen::after,
+html[data-preset="discord"] .jm-breathe,
+html[data-preset="discord"] .jm-soft-bob {
+  animation: none !important;
+}
+html[data-preset="discord"] .jm-ambient,
+html[data-preset="discord"] .jm-ambient-orb,
+html[data-preset="discord"] .jm-ambient-orb-delayed,
+html[data-preset="discord"] .jm-ambient-orb-slow {
+  display: none !important;
+}
+
+/* Modrinth preset: чуть крупнее шрифт в карточках ради «воздуха» */
+html[data-preset="modrinth"] .ui-card {
+  padding: calc(var(--space-4) * 1.1);
+}
+html[data-preset="modrinth"] .ui-heading {
+  font-size: calc(var(--text-lg) * 0.95);
+}
