@@ -37,8 +37,37 @@ rm -f "$OUTDIR/$ARCHIVE"
     jentlememes-launcher jentlememes-launcher.desktop )
 rm -rf "$STAGE"
 
+SHA256="$(sha256sum "$OUTDIR/$ARCHIVE" | awk '{print $1}')"
 echo "Created: $OUTDIR/$ARCHIVE"
-sha256sum "$OUTDIR/$ARCHIVE"
+echo "sha256:  $SHA256"
+
+# --- копируем tarball к обоим PKGBUILD'ам и синхронизируем sha256sums ---
+# Так makepkg сможет собрать пакет локально ещё до публикации GitHub Release:
+# source=() смотрит сначала в каталог PKGBUILD, и только если там нет — качает.
+sync_pkgbuild() {
+  local dir="$1"
+  local pkgbuild="$dir/PKGBUILD"
+  [[ -f "$pkgbuild" ]] || { echo "  skip (no PKGBUILD): $dir"; return; }
+  cp -f "$OUTDIR/$ARCHIVE" "$dir/$ARCHIVE"
+  # Чинит поле sha256sums=('...') в PKGBUILD in-place
+  sed -i -E "s|^sha256sums=\\('[0-9a-fA-F]+'\\)|sha256sums=('$SHA256')|" "$pkgbuild"
+  # Обновляем pkgver в PKGBUILD (на случай когда он не совпадает с Cargo.toml)
+  sed -i -E "s|^pkgver=.*|pkgver=$PKGVER|" "$pkgbuild"
+  # Если рядом лежит .SRCINFO — регенерируем
+  if command -v makepkg >/dev/null 2>&1 && [[ -f "$dir/.SRCINFO" ]]; then
+    ( cd "$dir" && makepkg --printsrcinfo > .SRCINFO ) || true
+  fi
+  echo "  synced: $pkgbuild (pkgver=$PKGVER, sha256=${SHA256:0:12}…)"
+}
+
 echo ""
-echo "Дальше: загрузите этот файл в GitHub Release как ассет с именем ровно:"
-echo "  $ARCHIVE"
+echo "Синхронизация PKGBUILD-ов:"
+sync_pkgbuild "$ROOT/jentlememes-launcher-bin"
+sync_pkgbuild "$ROOT/packaging/aur/jentlememes-launcher-bin"
+
+echo ""
+echo "Дальше:"
+echo "  1. Загрузите $OUTDIR/$ARCHIVE в GitHub Release v$PKGVER как ассет"
+echo "     с именем ровно: $ARCHIVE"
+echo "  2. Локальная сборка AUR-пакета:"
+echo "       cd jentlememes-launcher-bin && makepkg -si"

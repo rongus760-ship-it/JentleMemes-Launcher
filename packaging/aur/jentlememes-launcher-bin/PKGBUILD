@@ -17,8 +17,9 @@ conflicts=('jentlememes-launcher')
 _tarball="jentlememes-launcher-${pkgver}-linux-x86_64.tar.gz"
 source=("${_tarball}::${url}/releases/download/v${pkgver}/${_tarball}")
 
-# После пересборки бинарника: npm run package:linux:tarball && cd packaging/aur/jentlememes-launcher-bin && updpkgsums
-sha256sums=('2730c1b33c20aacb12beeea29c5a4f52e56f6328f702032adc90a6414ed4d242')
+# После пересборки бинарника: npm run package:linux:tarball (скрипт сам положит
+# свежий tar.gz рядом с этим PKGBUILD и пересчитает sha256sums).
+sha256sums=('e3db5d295256edaebea01e860d2cdce7ba0c223481acc3e8b5741b0b974dbaee')
 
 package() {
   tar -xzf "${srcdir}/${_tarball}" -C "${srcdir}"
