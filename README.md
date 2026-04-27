@@ -27,13 +27,7 @@
 - **In-Game Overlay** — HUD поверх Minecraft: виджеты с drag-n-drop, кнопки Стоп/Скрин/Логи, хвост `latest.log`
 - **Обновления** — автоматическая проверка и обновление лаунчера через API
 - **Наигранное время** — накопление секунд по каждой сборке (карточка в библиотеке)
-- **Discord Rich Presence** — опциональный статус «играет» на время сессии (см. ниже)
-
-### Discord Rich Presence (разработчикам)
-
-1. Создайте приложение в [Discord Developer Portal](https://discord.com/developers/applications) → скопируйте **Application ID** (не секрет).
-2. Вставьте ID в константу `DISCORD_APPLICATION_ID` в файле [`src-tauri/src/core/discord_presence.rs`](src-tauri/src/core/discord_presence.rs). Пока строка пустая, Rich Presence не подключается к IPC (настройка в лаунчере не навредит).
-3. (Опционально) В разделе **Rich Presence → Art Assets** загрузите картинки и укажите их ключи в коде через `.assets(...)` у активности.
+- **Discord Rich Presence** — опциональный статус «играет» на время сессии
 
 У пользователя должен быть запущен **Discord-клиент**. Переключатель: **Настройки → Discord Rich Presence**.
 
@@ -88,11 +82,8 @@ cd src-tauri/target/release
 tar -cvf - jentlememes-launcher | zstd -19 -o "JentleMemesLauncher_${VERSION}.tar.zst"
 ```
 
-Свой PKGBUILD + `makepkg -f` → загрузи получившийся `.pkg.tar.zst` в то же поле в админке (сервер сохранит расширение).
-
 Готовые шаблоны для **AUR** (из исходников и `-bin` из AppImage) и пошаговая инструкция: [`packaging/aur/AUR.md`](packaging/aur/AUR.md).
 
-**Админка на сайте:** поля `.deb` и Arch уже в репозитории сайта (`templates/admin.html`). Если на **jentlememes.ru** их нет — залей обновлённый шаблон на сервер в `/var/www/jentlememes/templates/` и перезапусти WSGI.
 
 ### Сборка Windows-установщика (из Linux)
 
